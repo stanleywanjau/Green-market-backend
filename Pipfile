@@ -17,6 +17,7 @@ psycopg2-binary = "*"
 flask-cors = "*"
 flask-jwt-extended = "*"
 faker = "*"
+marshmallow = "*"
 
 [dev-packages]
 

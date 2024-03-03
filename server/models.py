@@ -3,6 +3,8 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy_serializer import SerializerMixin
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import validates
+from sqlalchemy import CheckConstraint
+from marshmallow import validates_schema, ValidationError
 from config import db, bcrypt
 
 
@@ -24,8 +26,8 @@ class User(db.Model, SerializerMixin):
     __tablename__ = "user"
     
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String)
-    email = db.Column(db.String)
+    username = db.Column(db.String,unique=True)
+    email = db.Column(db.String,unique=True)
     password_hash = db.Column(db.String)  
     role = db.Column(db.String)
     registration_date = db.Column(db.Date)
@@ -35,12 +37,24 @@ class User(db.Model, SerializerMixin):
     reviews = db.relationship('Reviews', backref='user', lazy='dynamic') 
     sent_messages = db.relationship('ChatMessage', foreign_keys='ChatMessage.sender_id', backref='sender', lazy='dynamic')
     received_messages = db.relationship('ChatMessage', foreign_keys='ChatMessage.receiver_id', backref='receiver', lazy='dynamic')
+    
+    
+    @validates('email')
+    def validate_email(self, key, email):
+        if not email or '@' not in email:
+            raise ValueError('Invalid email address format')
+        return email
+
+    @validates_schema
+    def validate_schema(self, data):
+        if 'role' in data and data['role'] not in ['Farmer', 'customer']:
+            raise ValidationError('Invalid role. Must be either "Farmer" or "customer"')
 
 class Farmer(db.Model, SerializerMixin):
     __tablename__ = "farmer"
     
     id = db.Column(db.Integer, primary_key=True)
-    farm_name = db.Column(db.String)
+    farm_name = db.Column(db.String,unique=True)
     location = db.Column(db.String)
     contact = db.Column(db.String)    
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), unique=True)
@@ -55,6 +69,12 @@ class Reviews(db.Model, SerializerMixin):
     rating = db.Column(db.Integer)
     comments = db.Column(db.String)
     review_date = db.Column(db.Date)
+    
+    @validates('rating')
+    def validate_rating(self, key, rating):
+        if rating < 1 or rating > 5:
+            raise ValueError('Rating must be between 1 and 5')
+        return rating
 
 class Product(db.Model, SerializerMixin):
     __tablename__ = "product"
@@ -81,6 +101,13 @@ class Order(db.Model, SerializerMixin):
     order_status = db.Column(db.String)
     payments = db.relationship('Payment', backref='order')
     products = db.relationship('Product', secondary=association_table_order_product, backref='orders')  
+    
+    
+    @validates('quantity_ordered')
+    def validate_quantity_ordered(self, key, quantity_ordered):
+        if quantity_ordered <= 0:
+            raise ValueError('Quantity ordered must be greater than 0')
+        return quantity_ordered
 
 class Payment(db.Model, SerializerMixin):
     __tablename__ = "payment"
@@ -92,6 +119,13 @@ class Payment(db.Model, SerializerMixin):
     payment_method = db.Column(db.String)
     status = db.Column(db.String)
     transaction_id = db.Column(db.Integer)
+    
+    
+    @validates('payment_amount')
+    def validate_payment_amount(self, key, payment_amount):
+        if payment_amount < 0:
+            raise ValueError('Payment amount cannot be negative')
+        return payment_amount
 
 class ChatMessage(db.Model, SerializerMixin):
     __tablename__ = "chat_message"  
@@ -101,3 +135,9 @@ class ChatMessage(db.Model, SerializerMixin):
     receiver_id = db.Column(db.Integer, db.ForeignKey('user.id', name='fk_receiver_id'), nullable=False)
     message_text = db.Column(db.String)
     timestamp = db.Column(db.DateTime)  
+    
+    @validates('message_text')
+    def validate_message_text(self, key, message_text):
+        if not message_text:
+            raise ValueError('Message text cannot be empty')
+        return message_text
