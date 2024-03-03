@@ -1,6 +1,6 @@
-from flask import jsonify, request
+from flask import  jsonify, request, make_response
 from flask_restful import Resource
-from flask_jwt_extended import create_access_token
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 import random
 import smtplib
 
@@ -85,9 +85,93 @@ def send_otp_email(email, otp):
 def verify_otp(stored_otp, otp_user):
     # Compare the stored OTP with the OTP provided by the user
     return stored_otp == otp_user
+class CheckSession(Resource):
+    @jwt_required()
+    def get(self):
+        current_user_id = get_jwt_identity()
+        
+        user = User.query.filter_by(id=current_user_id).first()
+        if not user:
+            return {'error': '404 Not Found', 'message': 'User not found'}, 404
+
+        user_data = {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "role": user.role,
+            "image": user.image,
+            "sent_messages": [],
+            "received_messages": [],
+            "orders": [],
+            "reviews": [],
+            "farmer": {}
+        }
+        
+        for sent_msg in user.sent_messages:
+            user_data["sent_messages"].append({
+                "id": sent_msg.id,
+                "message_text": sent_msg.message_text,
+                "timestamp": sent_msg.timestamp
+            })
+        
+        for received_msg in user.received_messages:
+            user_data["received_messages"].append({
+                "id": received_msg.id,
+                "message_text": received_msg.message_text,
+                "timestamp": received_msg.timestamp
+            })
+
+        for order in user.orders:
+            user_data["orders"].append({
+                "id": order.id,
+                "order_date": order.order_date,
+                "quantity_ordered": order.quantity_ordered,
+                "total_price": order.total_price,
+                "order_status": order.order_status,
+                
+            })
+
+        for review in user.reviews:
+            user_data["reviews"].append({
+                "id": review.id,
+                "product_id": review.product_id,
+                "rating": review.rating,
+                "comments": review.comments,
+                "review_date": review.review_date,
+                
+            })
+
+        if user.role == "farmer":
+            farmer_data = {
+                "id": user.farmer.id,
+                "farm_name": user.farmer.farm_name,
+                "location": user.farmer.location,
+                "contact": user.farmer.contact
+                
+            }
+            user_data["farmer"] = farmer_data
+
+        return make_response(jsonify(user_data), 200)
+class Login(Resource):
+    def post(self):
+        username = request.json.get('username')
+        password = request.json.get('password')
+        
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            return {'error': '404: Not Found', 'message': 'User not found'}, 404
+
+        if not user.authenticate(password):
+            return {'error': '401: Unauthorized', 'message': 'Invalid password'}, 401
+
+        access_token = create_access_token(identity=user.id)
+        return {'access_token': access_token}, 200
+
 
 api.add_resource(Signup, '/signup', endpoint='signup')
 api.add_resource(Verify, '/verify')
+api.add_resource(CheckSession,'/checksession')
+api.add_resource(Login,'/login')
 
 if __name__ == "__main__":
     app.run(port=5555, debug=True)

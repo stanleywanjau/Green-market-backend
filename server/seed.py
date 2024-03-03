@@ -20,9 +20,24 @@ delete_data()
 
 def seed_data():
     with app.app_context():
-        user1 = User(username="Cain", email="cain@example.com", password_hash=bcrypt.generate_password_hash("password"), role="customer", registration_date=datetime.now(), image="https://i.pinimg.com/236x/a9/6a/b2/a96ab2f4fa3969802fc17cde9df4b427.jpg")
-        user2 = User(username="Lorenza", email="Lorenza@example.com", password_hash=bcrypt.generate_password_hash("password"), role="farmer", registration_date=datetime.now(), image="https://i.pinimg.com/236x/4c/31/ca/4c31ca4229f3240ec02151da4c21f888.jpg")
-
+        user1 = User(
+            username="Cain",
+            email="cain@example.com",
+            role="customer",
+            registration_date=datetime.now(),
+            image="https://i.pinimg.com/236x/a9/6a/b2/a96ab2f4fa3969802fc17cde9df4b427.jpg"
+        )
+        user1.password_hash = "password"  
+        
+        user2 = User(
+            username="Lorenza",
+            email="Lorenza@example.com",
+            role="farmer",
+            registration_date=datetime.now(),
+            image="https://i.pinimg.com/236x/4c/31/ca/4c31ca4229f3240ec02151da4c21f888.jpg"
+        )
+        user2.password_hash = "password"  
+        
         farmer1 = Farmer(farm_name="Green Farms", location="Somewhere", contact="1234567890")
         farmer1.user = user2
 
