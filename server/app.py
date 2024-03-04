@@ -5,7 +5,7 @@ import random
 import smtplib
 
 from config import db, api, app
-from models import User
+from models import User,Farmer
 
 # Add a dictionary to store email-OTP mappings
 signup_otp_map = {}
@@ -66,7 +66,7 @@ class Verify(Resource):
 
 def send_otp_email(email, otp):
     # This function sends the OTP via email using SMTP
-    # You need to replace placeholders with your SMTP server details
+    
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
     sender_email = 'stanley.muiruri@student.moringaschool.com'
@@ -168,10 +168,16 @@ class Login(Resource):
         return {'access_token': access_token}, 200
 
 
+
+
+
+
+
 api.add_resource(Signup, '/signup', endpoint='signup')
 api.add_resource(Verify, '/verify')
 api.add_resource(CheckSession,'/checksession')
 api.add_resource(Login,'/login')
+
 
 if __name__ == "__main__":
     app.run(port=5555, debug=True)
