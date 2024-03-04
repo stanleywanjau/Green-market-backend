@@ -49,12 +49,14 @@ def seed_data():
         db.session.commit()
 
         product1 = Product(name="Apple", price=1, description="Fresh apples", quantity_available=100, category="Fruit", image="https://i.pinimg.com/236x/41/6a/67/416a671f74edf7f2357e3cad537635b5.jpg")
+        product2 = Product(name="Apple", price=1, description="Fresh apples", quantity_available=100, category="Fruit", image="https://i.pinimg.com/236x/41/6a/67/416a671f74edf7f2357e3cad537635b5.jpg")
         product1.farmer = farmer1
-        db.session.add(product1)
+        product2.farmer=farmer1
+        db.session.add_all([product1,product2])
         db.session.commit()
 
         # Create order1 and associate it with product1
-        order1 = Order(customer_id=user1.id, order_date=datetime.now(), quantity_ordered=5, total_price=5, order_status="completed", product_id=product1.id)
+        order1 = Order(customer_id=user1.id, order_date=datetime.now(), quantity_ordered=5, total_price=10, order_status="completed", product_id=product1.id)
         db.session.add(order1)
         
         chat_message1 = ChatMessage(sender_id=user1.id, receiver_id=user2.id, message_text="Hello, I would like to order some apples.", timestamp=datetime.now())
@@ -65,6 +67,7 @@ def seed_data():
         db.session.add_all([payment1])
 
         db.session.execute(association_table_order_product.insert().values(order_id=order1.id, product_id=product1.id))
+        db.session.execute(association_table_order_product.insert().values(order_id=order1.id, product_id=product2.id))
         db.session.execute(association_table_product_review.insert().values(product_id=product1.id, review_id=review1.id))
 
         db.session.commit()
