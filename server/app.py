@@ -166,7 +166,38 @@ class Login(Resource):
 
         access_token = create_access_token(identity=user.id)
         return {'access_token': access_token}, 200
+class FarmerDetails(Resource):
+    @jwt_required()
+    def post(self):
+        current_user_id = get_jwt_identity()
+        user = User.query.filter_by(id=current_user_id).first()
 
+        if not user:
+            return {'error': '404 Not Found', 'message': 'User not found'}, 404
+
+        if user.role != "farmer":
+            return {'error': '403 Forbidden', 'message': 'User is not a farmer'}, 403
+
+        
+        farm_name = request.json.get('farm_name')
+        location = request.json.get('location')
+        contact = request.json.get('contact')
+
+        if not (farm_name and location and contact):
+            return {'error': '422 Unprocessable Entity', 'message': 'Missing farmer details'}, 422
+
+        
+        if user.farmer:
+            user.farmer.farm_name = farm_name
+            user.farmer.location = location
+            user.farmer.contact = contact
+        else:
+            farmer = Farmer(farm_name=farm_name, location=location, contact=contact)
+            user.farmer = farmer
+
+        db.session.commit()
+
+        return {'message': 'Farmer details added successfully'}, 201
 
 
 
@@ -177,7 +208,7 @@ api.add_resource(Signup, '/signup', endpoint='signup')
 api.add_resource(Verify, '/verify')
 api.add_resource(CheckSession,'/checksession')
 api.add_resource(Login,'/login')
-
+api.add_resource(FarmerDetails, '/farmer-details')
 
 if __name__ == "__main__":
     app.run(port=5555, debug=True)
