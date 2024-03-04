@@ -3,7 +3,6 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy_serializer import SerializerMixin
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import validates
-from sqlalchemy import CheckConstraint
 from marshmallow import validates_schema, ValidationError
 from config import db, bcrypt
 
@@ -30,7 +29,7 @@ class User(db.Model, SerializerMixin):
     email = db.Column(db.String,unique=True)
     _password_hash = db.Column(db.String) 
     role = db.Column(db.String)
-    registration_date = db.Column(db.Date)
+    registration_date = db.Column(db.DateTime,default=datetime.utcnow)
     image = db.Column(db.String)
     farmer = db.relationship('Farmer', backref='user', uselist=False)
     orders = db.relationship('Order', backref='user')
