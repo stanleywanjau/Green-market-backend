@@ -33,7 +33,7 @@ class Signup(Resource):
         send_otp_email(email, otp)
 
         # Return the email for verification
-        return {'email': email}, 200
+        return {'email': email,"message":f"check otp in the {email}"}, 200
 
 class Verify(Resource):
     def post(self):
@@ -166,6 +166,21 @@ class Login(Resource):
 
         access_token = create_access_token(identity=user.id)
         return {'access_token': access_token}, 200
+
+class DeleteAccount(Resource):
+    @jwt_required()
+    def delete(self):
+        current_user_id = get_jwt_identity()
+        user = User.query.filter_by(id=current_user_id).first()
+
+        if not user:
+            return {'error': '404 Not Found', 'message': 'User not found'}, 404
+
+        db.session.delete(user)
+        db.session.commit()
+
+        return {'message': 'User account deleted successfully'}, 200
+    
 class FarmerDetails(Resource):
     @jwt_required()
     def post(self):
@@ -208,6 +223,7 @@ api.add_resource(Signup, '/signup', endpoint='signup')
 api.add_resource(Verify, '/verify')
 api.add_resource(CheckSession,'/checksession')
 api.add_resource(Login,'/login')
+api.add_resource(DeleteAccount, '/delete-account')
 api.add_resource(FarmerDetails, '/farmer-details')
 
 if __name__ == "__main__":
