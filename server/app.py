@@ -33,7 +33,7 @@ class Signup(Resource):
         send_otp_email(email, otp)
 
         # Return the email for verification
-        return {'email': email}, 200
+        return {'email': email,"message":f"check otp in the {email}"}, 200
 
 class Verify(Resource):
     def post(self):
