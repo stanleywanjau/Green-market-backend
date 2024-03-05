@@ -180,6 +180,9 @@ class DeleteAccount(Resource):
         db.session.commit()
 
         return {'message': 'User account deleted successfully'}, 200
+class Resetpassword(Resource):
+    def post(self):
+        pass
     
 class FarmerDetails(Resource):
     @jwt_required()
@@ -225,6 +228,7 @@ api.add_resource(CheckSession,'/checksession')
 api.add_resource(Login,'/login')
 api.add_resource(DeleteAccount, '/delete-account')
 api.add_resource(FarmerDetails, '/farmer-details')
+api.add_resource(Resetpassword,"/reset-password")
 
 if __name__ == "__main__":
     app.run(port=5555, debug=True)
