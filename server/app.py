@@ -16,6 +16,7 @@ from models import ChatMessage, User,Farmer
 
 # Add a dictionary to store email-OTP mappings
 signup_otp_map = {}
+reset_otp_map ={}
 
 class Signup(Resource):
     def post(self):
@@ -29,6 +30,14 @@ class Signup(Resource):
             return {'error': '422: Unprocessable Entity'}, 422
         if role not in ['farmer', 'customer']:
             return {'error': '422: Unprocessable Entity', 'message': 'Invalid role value'}, 422
+        
+        existing_user_email = User.query.filter_by(email=email).first()
+        existing_user_username = User.query.filter_by(username=username).first()
+
+        if existing_user_email:
+            return {'error': '409 Conflict', 'message': 'Email already exists'}, 409
+        if existing_user_username:
+            return {'error': '409 Conflict', 'message': 'Username already exists'}, 409
 
         # Generate OTP
         otp = ''.join([str(random.randint(0, 9)) for _ in range(6)])
@@ -40,7 +49,7 @@ class Signup(Resource):
         send_otp_email(email, otp)
 
         # Return the email for verification
-        return {'email': email,"message":f"check otp in the {email}"}, 200
+        return {'email': email,"message":f"OTP sent to your email - {email}"}, 200
 
 class Verify(Resource):
     def post(self):
@@ -51,6 +60,13 @@ class Verify(Resource):
         stored_otp = signup_otp_map.get(email)
 
         if stored_otp and verify_otp(stored_otp, otp_user):
+            # existing_user_email = User.query.filter_by(email=email).first()
+            # existing_user_username = User.query.filter_by(username=username).first()
+
+            # if existing_user_email:
+            #     return {'error': '409 Conflict', 'message': 'Email already exists'}, 409
+            # if existing_user_username:
+            #     return {'error': '409 Conflict', 'message': 'Username already exists'}, 409
             # Create a new user instance
             username = request.json.get('username')
             password = request.json.get('password')
@@ -187,9 +203,43 @@ class DeleteAccount(Resource):
         db.session.commit()
 
         return {'message': 'User account deleted successfully'}, 200
-class Resetpassword(Resource):
+class ForgotPassword(Resource):
     def post(self):
-        pass
+        email = request.json.get('email')
+        user = User.query.filter_by(email=email).first()
+
+        if not user:
+            return {'error': '404 Not Found', 'message': 'User not found'}, 404
+
+        temporary_password = ''.join([str(random.randint(0, 9)) for _ in range(8)])
+        reset_otp_map[email]=temporary_password
+        # user.password_hash = temporary_password
+        # db.session.commit()
+
+        send_otp_email(email, temporary_password)
+
+        return {'message': f'OTP sent to your email - {email}'}, 200
+class ChangePassword(Resource):
+    def post(self):
+        email = request.json.get('email')
+        otp_user = request.json.get('otp')
+        new_password = request.json.get('new_password')
+
+        stored_otp = reset_otp_map.get(email)
+
+        if stored_otp and verify_otp(stored_otp, otp_user):
+            user = User.query.filter_by(email=email).first()
+
+            if not user:
+                return {'error': '404 Not Found', 'message': 'User not found'}, 404
+
+            user.password_hash = new_password
+            db.session.commit()
+
+            return {'message': 'Password changed successfully'}, 200
+        else:
+            return {'error': '401 Unauthorized', 'message': 'Invalid OTP'}, 401
+
     
 class FarmerDetails(Resource):
     @jwt_required()
@@ -358,7 +408,8 @@ api.add_resource(delete_messages,'/deletemessage/<int:message_id>')
 
 api.add_resource(DeleteAccount, '/delete-account')
 api.add_resource(FarmerDetails, '/farmer-details')
-api.add_resource(Resetpassword,"/reset-password")
+api.add_resource(ForgotPassword, '/forgot-password')
+api.add_resource(ChangePassword, '/change-password')
 
 if __name__ == "__main__":
     app.run(port=5555, debug=True)
