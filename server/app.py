@@ -426,6 +426,7 @@ api.add_resource(delete_messages,'/deletemessage/<int:message_id>')
 api.add_resource(DeleteAccount, '/delete-account')
 api.add_resource(FarmerDetails, '/farmer-details')
 
+
 api.add_resource(ForgotPassword, '/forgot-password')
 api.add_resource(ChangePassword, '/change-password')
 
@@ -435,6 +436,7 @@ api.add_resource(FarmerOrders, '/farmer/orders')
 # api.add_resource(ProductList, '/products/farmers', endpoint='farmer_products')
 api.add_resource(ProductList, '/products')
 api.add_resource(productbyid,"/product/<int:productid>")
+
 
 
 if __name__ == "__main__":
