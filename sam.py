@@ -1,9 +1,7 @@
-from sqlite3 import IntegrityError
 from flask import  jsonify, request, make_response
 from flask_restful import Resource
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 import random
-from datetime import datetime
 import smtplib
 
 from config import db, api, app
@@ -201,141 +199,117 @@ class FarmerDetails(Resource):
 
         return {'message': 'Farmer details added successfully'}, 201
 
-class CustomerOrders(Resource):
+
+# Routes
+class Orders(Resource):
     @jwt_required()
     def get(self):
-        # Get current user ID
-        user_id = get_jwt_identity()
+        current_user_id = get_jwt_identity()
+        user = User.query.filter_by(id=current_user_id).first()
+        if not user:
+            return {'error': '404 Not Found', 'message': 'User not found'}, 404
 
-        # Query orders associated with the current user (customer)
-        orders = Order.query.filter_by(customer_id=user_id).all()
+        if user.role == "customer":
+            orders = Order.query.filter_by(customer_id=current_user_id).all()
+        elif user.role == "farmer":
+            products = Product.query.filter_by(farmer_id=user.farmer.id).all()
+            product_ids = [product.id for product in products]
+            orders = Order.query.filter(Order.product_id.in_(product_ids)).all()
+        else:
+            return {'error': '403 Forbidden', 'message': 'User role not supported for orders'}, 403
 
-        # Serialize orders data and return
-        return make_response({'orders': [order.serialize() for order in orders]}, 200)
+        # Serialize orders data as needed before returning
+        return jsonify([order.serialize() for order in orders]), 200
 
     @jwt_required()
     def post(self):
-        # Get current user ID
-        user_id = get_jwt_identity()
+        current_user_id = get_jwt_identity()
+        user = User.query.filter_by(id=current_user_id).first()
+        if not user:
+            return {'error': '404 Not Found', 'message': 'User not found'}, 404
 
-        # Parse request data
-        data = request.json
-        product_id = data.get('product_id')
-        quantity = data.get('quantity')
+        # Extract order data from the request
+        order_data = request.json
+        product_id = order_data.get('product_id')
+        quantity_ordered = order_data.get('quantity_ordered')
 
-        # Check if product_id and quantity are provided
-        if not product_id or not quantity:
-            return make_response({'error': 'Missing fields', 'message': 'Both product_id and quantity are required'}, 400)
+        # Validate the input data
+        if not (product_id and quantity_ordered):
+            return {'error': '422 Unprocessable Entity', 'message': 'Product ID and quantity are required'}, 422
 
-        # Validate quantity
-        try:
-            quantity = int(quantity)
-            if quantity <= 0:
-                raise ValueError('Quantity must be a positive integer')
-        except ValueError:
-            return make_response({'error': 'Invalid quantity', 'message': 'Quantity must be a positive integer'}, 400)
-
-        # Check if the product exists and handle quantity available
+        # Check if the product exists
         product = Product.query.get(product_id)
         if not product:
-            return make_response({'error': 'Product not found', 'message': 'The specified product does not exist'}, 404)
-        if product.quantity_available < quantity:
-            return make_response({'error': 'Insufficient quantity available', 'message': 'The requested quantity exceeds available stock'}, 400)
+            return {'error': '404 Not Found', 'message': 'Product not found'}, 404
 
-        # Create new order
-        try:
-            new_order = Order(customer_id=user_id, product_id=product_id, quantity_ordered=quantity, order_date=datetime.utcnow())
-            db.session.add(new_order)
-            db.session.commit()
-        except IntegrityError:
-            db.session.rollback()
-            return make_response({'error': 'Database error', 'message': 'Failed to create order'}, 500)
+        # Check if the user is a customer
+        if user.role != "customer":
+            return {'error': '403 Forbidden', 'message': 'Only customers can place orders'}, 403
 
-        # Decrement product quantity
-        product.quantity_available -= quantity
+        # Create the order
+        order = Order(
+            customer_id=current_user_id,
+            product_id=product_id,
+            quantity_ordered=quantity_ordered,
+            total_price=product.price * quantity_ordered,
+            order_date=datetime.utcnow(),  # Assuming the current time is used as the order date
+            order_status="pending"  # Assuming the initial status is "pending"
+        )
+
+        # Add the order to the database
+        db.session.add(order)
         db.session.commit()
 
-        return make_response({'message': 'Order placed successfully'}, 201)
-
-
-class FarmerOrders(Resource):
-    @jwt_required()
-    def get(self):
-        # Get current farmer's user ID
-        farmer_id = get_jwt_identity()
-
-        # Query orders associated with products of the current farmer
-        orders = Order.query.join(Product).join(Farmer).filter(Farmer.id == farmer_id).all()
-
-        # Serialize orders data and return
-        return make_response({'orders': [order.serialize() for order in orders]}, 200)
+        # Serialize the order data before returning
+        return jsonify(order.serialize()), 201
 
     @jwt_required()
     def put(self, order_id):
-        # Get current farmer's user ID
-        farmer_id = get_jwt_identity()
+        current_user_id = get_jwt_identity()
+        user = User.query.filter_by(id=current_user_id).first()
+        if not user:
+            return {'error': '404 Not Found', 'message': 'User not found'}, 404
 
-        # Check if the order belongs to the current farmer
-        order = Order.query.join(Product).join(Farmer).filter(Farmer.id == farmer_id, Order.id == order_id).first()
+        # Extract updated order data from the request
+        updated_order_data = request.json
+        quantity_ordered = updated_order_data.get('quantity_ordered')
+
+        # Validate the input data
+        if not quantity_ordered:
+            return {'error': '422 Unprocessable Entity', 'message': 'Quantity is required'}, 422
+
+        # Fetch the order to be updated
+        order = Order.query.filter_by(id=order_id, customer_id=current_user_id).first()
         if not order:
-            return {'error': '404 Not Found', 'message': 'Order not found or does not belong to the farmer'}, 404
+            return {'error': '404 Not Found', 'message': 'Order not found or unauthorized'}, 404
 
-        # Update order status (example: mark as completed)
-        data = request.get_json()
-        new_status = data.get('order_status')
-        order.order_status = new_status
+        # Update the order data
+        order.quantity_ordered = quantity_ordered
+        order.total_price = order.product.price * quantity_ordered
+
+        # Commit the changes to the database
         db.session.commit()
 
-        return make_response({'message': 'Order status updated successfully'}, 200)
+        # Serialize the updated order data before returning
+        return jsonify(order.serialize()), 200
 
     @jwt_required()
     def delete(self, order_id):
-        # Get current farmer's user ID
-        farmer_id = get_jwt_identity()
+        current_user_id = get_jwt_identity()
+        user = User.query.filter_by(id=current_user_id).first()
+        if not user:
+            return {'error': '404 Not Found', 'message': 'User not found'}, 404
 
-        # Check if the order belongs to the current farmer
-        order = Order.query.join(Product).join(Farmer).filter(Farmer.id == farmer_id, Order.id == order_id).first()
+        # Fetch the order to be deleted
+        order = Order.query.filter_by(id=order_id, customer_id=current_user_id).first()
         if not order:
-            return {'error': '404 Not Found', 'message': 'Order not found or does not belong to the farmer'}, 404
+            return {'error': '404 Not Found', 'message': 'Order not found or unauthorized'}, 404
 
-        # Delete the order
+        # Delete the order from the database
         db.session.delete(order)
         db.session.commit()
 
-        return make_response({'message': 'Order deleted successfully'}, 200)
-#products routes
-class ProductList(Resource):
-    def get(self):
-       
-        products =[ {"id":product.id,"name":product.name,"price":product.price,"image":product.image }for product in Product.query.all()]
-
-        
-        # serialized_products = [product.serialize() for product in products]
-        return make_response(jsonify(products))
-
-
-class FarmerProductList(Resource):
-    @jwt_required()
-    def get(self):
-        farmer_id = get_jwt_identity()
-
-        # Query products associated with the current farmer
-        products = Product.query.filter_by(farmer_id=farmer_id).all()
-
-        # Serialize products data and return
-        serialized_products = [product.serialize() for product in products]
-        return jsonify({'products': serialized_products})
-
-
-class productbyid(Resource):
-    def get(self,productid):
-        product= Product.query.filter_by(id=productid).first()
-        product_data={
-            "id":product.id,
-            "name":product.name,
-        }
-        return make_response(jsonify(product_data))
-
+        return {'message': 'Order deleted successfully'}, 200
 
 
 
@@ -345,10 +319,7 @@ api.add_resource(Verify, '/verify')
 api.add_resource(CheckSession,'/checksession')
 api.add_resource(Login,'/login')
 api.add_resource(FarmerDetails, '/farmer-details')
-api.add_resource(CustomerOrders, '/customer/orders')
-api.add_resource(FarmerOrders, '/farmer/orders')
-# api.add_resource(ProductList, '/products/farmers', endpoint='farmer_products')
-api.add_resource(ProductList, '/products')
-api.add_resource(productbyid,"/product/<int:productid>")
+api.add_resource(Orders, '/orders/<int:order_id>', endpoint='orders')
+
 if __name__ == "__main__":
     app.run(port=5555, debug=True)

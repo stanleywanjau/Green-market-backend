@@ -105,10 +105,11 @@ class Product(db.Model, SerializerMixin):
 class Order(db.Model, SerializerMixin):
     __tablename__ = "order"
     
+    
     id = db.Column(db.Integer, primary_key=True)
     customer_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'))  
-    order_date = db.Column(db.Date)
+    order_date = db.Column(db.DateTime, default=datetime.utcnow)  # Automatically set the order date
     quantity_ordered = db.Column(db.Integer)
     total_price = db.Column(db.Integer)  
     order_status = db.Column(db.String)
@@ -121,7 +122,14 @@ class Order(db.Model, SerializerMixin):
         if quantity_ordered <= 0:
             raise ValueError('Quantity ordered must be greater than 0')
         return quantity_ordered
-
+    def serialize(self):
+        return {
+            "id": self.id,
+            "order_date": self.order_date.strftime("%Y-%m-%d %H:%M:%S") if self.order_date else None,  # Convert to string format if order_date is not None
+            "quantity_ordered": self.quantity_ordered,
+            "total_price": self.total_price,
+            "order_status": self.order_status,
+        }
 class Payment(db.Model, SerializerMixin):
     __tablename__ = "payment"
     
