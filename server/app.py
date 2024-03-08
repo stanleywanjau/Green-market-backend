@@ -408,20 +408,38 @@ class productbyid(Resource):
 class ReviewsResource(Resource):
     @jwt_required()
     def post(self):
-        identity=get_jwt_identity()
+        identity = get_jwt_identity()
         user = User.query.filter_by(id=identity).first()
-        print(user)
-        if user.role == 'customer':
-            rating=request.json.get("rating")
-            comments=request.json.get("comment")
-            product_id=request.json.get("product_id")
-            reviews=Reviews(rating=rating,comments=comments,product_id=product_id,customer_id=identity)
-            db.session.add(reviews)
-            db.session.commit()
-            return {"message":"review successfully posted "}
-            
-        else:
-             return jsonify(message="Unauthorized access"), 401
+
+        if user.role != 'customer':
+            return make_response(jsonify(message="Only customers can submit reviews"), 403)
+
+        rating = request.json.get("rating")
+        comments = request.json.get("comment")
+        product_id = request.json.get("product_id")
+        
+        try:
+            rating = int(rating)
+            if rating < 1 or rating > 5:
+                raise ValueError("Rating must be between 1 and 5")
+        except (TypeError, ValueError):
+            return make_response(jsonify(message="Invalid rating. Rating must be an integer between 1 and 5"), 400)
+
+        # Check if the user has completed an order for the product they want to review
+        order = Order.query.filter_by(customer_id=identity, product_id=product_id, order_status='completed').first()
+        if not order:
+            return make_response(jsonify(message="You can only review products you have ordered and received"), 403)
+
+        # Create a new Reviews object with the provided data
+        review = Reviews(rating=rating, comments=comments, product_id=product_id, customer_id=identity)
+
+        
+        
+        db.session.add(review)
+        db.session.commit()
+        return make_response(jsonify(message="Review successfully posted"))
+        
+
         
 class Reviewperproduct(Resource):
     def get(self, productid):        
@@ -436,7 +454,37 @@ class Reviewperproduct(Resource):
                 "comments":review.comments
             })
         return make_response(jsonify(review_data))
+class ProductReview(Resource):
+    @jwt_required()
+    def delete(self, review_id):
+        identity = get_jwt_identity()
+        user = User.query.filter_by(id=identity).first()
 
+        # Check if the user exists
+        if not user:
+            return make_response(jsonify(error="User not found"), 404)
+
+        # Check if the review exists
+        review = db.session.get(Reviews, review_id)
+
+        if not review:
+            return make_response(jsonify(error="Review not found"), 404)
+
+        # Check if the user is authorized to delete the review
+        if review.customer_id != identity:
+            return make_response(jsonify(error="You are not authorized to delete this review"), 403)
+
+        # Delete the review
+        db.session.delete(review)
+        db.session.commit()
+
+        return make_response(jsonify(message="Review deleted successfully"), 200)
+    
+    
+    
+    
+    
+    
 api.add_resource(Signup, '/signup', endpoint='signup')
 api.add_resource(Verify, '/verify')
 api.add_resource(CheckSession,'/checksession')
@@ -456,6 +504,7 @@ api.add_resource(ProductList, '/products')
 api.add_resource(productbyid,"/product/<int:productid>")
 api.add_resource(ReviewsResource,'/reviews')
 api.add_resource(Reviewperproduct, '/review/<int:productid>')
+api.add_resource(ProductReview,'/deleteReview/<int:review_id>')
 
 
 

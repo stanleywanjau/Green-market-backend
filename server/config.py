@@ -13,7 +13,7 @@ app.secret_key=b'\xae\xf15\xb5\xfa\x8b\xafz%%\x19\xe8\xb4\xc5\x06\x8f'
 app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///Greenmarket.db"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS']=False
 app.config["JWT_SECRET_KEY"] = "please-remember-to-change-me"
-app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=24)
 jwt = JWTManager(app)
 
 migrate=Migrate(app,db)

@@ -37,11 +37,19 @@ def seed_data():
             image="https://i.pinimg.com/236x/4c/31/ca/4c31ca4229f3240ec02151da4c21f888.jpg"
         )
         user2.password_hash = "password"  
+        user3 = User(
+            username="Stanley",
+            email="Stanley@example.com",
+            role="customer",
+            registration_date=datetime.now(),
+            image="https://i.pinimg.com/236x/4c/31/ca/4c31ca4229f3240ec02151da4c21f888.jpg"
+        )
+        user3.password_hash = "password" 
         
         farmer1 = Farmer(farm_name="Green Farms", location="Somewhere", contact="1234567890")
         farmer1.user = user2
 
-        db.session.add_all([user1, user2, farmer1])
+        db.session.add_all([user1, user2,user3, farmer1])
         db.session.commit()
 
         review1 = Reviews(customer_id=user1.id, product_id=1, rating=4, comments="Great product!", review_date=datetime.now())
@@ -57,7 +65,8 @@ def seed_data():
 
         # Create order1 and associate it with product1
         order1 = Order(customer_id=user1.id, order_date=datetime.now(), quantity_ordered=5, total_price=10, order_status="completed", product_id=product1.id)
-        db.session.add(order1)
+        order2 = Order(customer_id=user3.id, order_date=datetime.now(), quantity_ordered=5, total_price=10, order_status="in progess", product_id=product1.id)
+        db.session.add(order1,order2)
         
         chat_message1 = ChatMessage(sender_id=user1.id, receiver_id=user2.id, message_text="Hello, I would like to order some apples.", timestamp=datetime.now())
         db.session.add(chat_message1)
