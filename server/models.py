@@ -81,7 +81,7 @@ class Reviews(db.Model, SerializerMixin):
     product_id = db.Column(db.Integer, db.ForeignKey('product.id')) 
     rating = db.Column(db.Integer)
     comments = db.Column(db.String)
-    review_date = db.Column(db.Date)
+    review_date = db.Column(db.Date,default=datetime.utcnow)
     
     @validates('rating')
     def validate_rating(self, key, rating):
