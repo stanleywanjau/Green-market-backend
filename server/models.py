@@ -100,7 +100,7 @@ class Product(db.Model, SerializerMixin):
     category = db.Column(db.String)
     image = db.Column(db.String)
     farmer_id = db.Column(db.Integer, db.ForeignKey('farmer.id'))
-    farmer = db.relationship('Farmer', backref='products')
+    farmer = db.relationship('Farmer', backref='products')  # Changed backref name to 'products'
 
     @validates('price')
     def validate_price(self, key, price):
@@ -130,6 +130,7 @@ class Product(db.Model, SerializerMixin):
                 'contact': self.farmer.contact
             }
         }
+
   
     
 
