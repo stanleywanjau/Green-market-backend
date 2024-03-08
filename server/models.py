@@ -134,7 +134,7 @@ class Product(db.Model, SerializerMixin):
   
     
 
-class Order(db.Model, SerializerMixin):
+class CustomerOrder(db.Model, SerializerMixin):
     __tablename__ = "order"
     
     id = db.Column(db.Integer, primary_key=True)

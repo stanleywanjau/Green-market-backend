@@ -7,7 +7,7 @@ from datetime import datetime
 import smtplib
 
 from config import db, api, app
-from models import User,Farmer,Order,Product
+from models import User,Farmer,CustomerOrder,Product
 
 # Add a dictionary to store email-OTP mappings
 signup_otp_map = {}
@@ -238,12 +238,12 @@ class CustomerOrders(Resource):
     @jwt_required()
     def get(self):
         current_user_id = get_jwt_identity()
-        orders = Order.query.filter_by(customer_id=current_user_id).all()
+        orders = CustomerOrder.query.filter_by(customer_id=current_user_id).all()
         return jsonify([order.serialize() for order in orders]), 200
 
     @jwt_required()
     def delete(self, order_id):
-        order = Order.query.get(order_id)
+        order = CustomerOrder.query.get(order_id)
         if order:
             db.session.delete(order)
             db.session.commit()
@@ -258,7 +258,7 @@ class CustomerPlaceOrder(Resource):
         customer = User.query.get(current_user_id)
         
         # Logic to place an order
-        order = Order(customer_id=current_user_id, order_date=datetime.utcnow(), quantity_ordered=quantity, total_price=total_price, order_status="Placed")
+        order = CustomerOrder(customer_id=current_user_id, order_date=datetime.utcnow(), quantity_ordered=quantity, total_price=total_price, order_status="Placed")
         for product in customer.cart_products:
             order.products.append(product)
         db.session.add(order)
