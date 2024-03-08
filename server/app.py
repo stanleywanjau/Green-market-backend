@@ -201,141 +201,101 @@ class FarmerDetails(Resource):
 
         return {'message': 'Farmer details added successfully'}, 201
 
-class CustomerOrders(Resource):
+class CustomerProducts(Resource):
+    def get(self):
+        products = Product.query.all()
+        return jsonify([product.serialize() for product in products]), 200
+
+class CustomerCart(Resource):
     @jwt_required()
     def get(self):
-        # Get current user ID
-        user_id = get_jwt_identity()
-
-        # Query orders associated with the current user (customer)
-        orders = Order.query.filter_by(customer_id=user_id).all()
-
-        # Serialize orders data and return
-        return make_response({'orders': [order.serialize() for order in orders]}, 200)
+        current_user_id = get_jwt_identity()
+        customer = User.query.get(current_user_id)
+        cart_products = customer.cart_products
+        return jsonify([product.serialize() for product in cart_products]), 200
 
     @jwt_required()
     def post(self):
-        # Get current user ID
-        user_id = get_jwt_identity()
-
-        # Parse request data
-        data = request.json
-        product_id = data.get('product_id')
-        quantity = data.get('quantity')
-
-        # Check if product_id and quantity are provided
-        if not product_id or not quantity:
-            return make_response({'error': 'Missing fields', 'message': 'Both product_id and quantity are required'}, 400)
-
-        # Validate quantity
-        try:
-            quantity = int(quantity)
-            if quantity <= 0:
-                raise ValueError('Quantity must be a positive integer')
-        except ValueError:
-            return make_response({'error': 'Invalid quantity', 'message': 'Quantity must be a positive integer'}, 400)
-
-        # Check if the product exists and handle quantity available
+        current_user_id = get_jwt_identity()
+        customer = User.query.get(current_user_id)
+        
+        product_id = request.json.get('product_id')
+        quantity = request.json.get('quantity')
+        
         product = Product.query.get(product_id)
-        if not product:
-            return make_response({'error': 'Product not found', 'message': 'The specified product does not exist'}, 404)
-        if product.quantity_available < quantity:
-            return make_response({'error': 'Insufficient quantity available', 'message': 'The requested quantity exceeds available stock'}, 400)
+        if product:
+            if quantity <= product.quantity_available:
+                # Logic to add product to cart
+                customer.cart_products.append(product)
+                db.session.commit()
+                return {'message': 'Product added to cart successfully'}, 200
+            else:
+                return {'error': '422 Unprocessable Entity', 'message': 'Quantity requested exceeds available stock'}, 422
+        else:
+            return {'error': '404 Not Found', 'message': 'Product not found'}, 404
 
-        # Create new order
-        try:
-            new_order = Order(customer_id=user_id, product_id=product_id, quantity_ordered=quantity, order_date=datetime.utcnow())
-            db.session.add(new_order)
+class CustomerOrders(Resource):
+    @jwt_required()
+    def get(self):
+        current_user_id = get_jwt_identity()
+        orders = Order.query.filter_by(customer_id=current_user_id).all()
+        return jsonify([order.serialize() for order in orders]), 200
+
+    @jwt_required()
+    def delete(self, order_id):
+        order = Order.query.get(order_id)
+        if order:
+            db.session.delete(order)
             db.session.commit()
-        except IntegrityError:
-            db.session.rollback()
-            return make_response({'error': 'Database error', 'message': 'Failed to create order'}, 500)
+            return {'message': 'Order deleted successfully'}, 200
+        else:
+            return {'error': '404 Not Found', 'message': 'Order not found'}, 404
 
-        # Decrement product quantity
-        product.quantity_available -= quantity
+class CustomerPlaceOrder(Resource):
+    @jwt_required()
+    def post(self):
+        current_user_id = get_jwt_identity()
+        customer = User.query.get(current_user_id)
+        
+        # Logic to place an order
+        order = Order(customer_id=current_user_id, order_date=datetime.utcnow(), quantity_ordered=quantity, total_price=total_price, order_status="Placed")
+        for product in customer.cart_products:
+            order.products.append(product)
+        db.session.add(order)
         db.session.commit()
+        return {'message': 'Order placed successfully'}, 201
 
-        return make_response({'message': 'Order placed successfully'}, 201)
+class FarmerAddProduct(Resource):
+    @jwt_required()
+    def post(self):
+        current_user_id = get_jwt_identity()
+        farmer = User.query.get(current_user_id)
+        
+        name = request.json.get('name')
+        description = request.json.get('description')
+        price = request.json.get('price')
+        quantity_available = request.json.get('quantity_available')
+        category = request.json.get('category')
+        image = request.json.get('image')
+        
+        product = Product(name=name, description=description, price=price, quantity_available=quantity_available, category=category, image=image, farmer_id=current_user_id)
+        db.session.add(product)
+        db.session.commit()
+        return {'message': 'Product added successfully'}, 201
 
+class FarmerProducts(Resource):
+    @jwt_required()
+    def get(self):
+        current_user_id = get_jwt_identity()
+        products = Product.query.filter_by(farmer_id=current_user_id).all()
+        return jsonify([product.serialize() for product in products]), 200
 
 class FarmerOrders(Resource):
     @jwt_required()
     def get(self):
-        # Get current farmer's user ID
-        farmer_id = get_jwt_identity()
-
-        # Query orders associated with products of the current farmer
-        orders = Order.query.join(Product).join(Farmer).filter(Farmer.id == farmer_id).all()
-
-        # Serialize orders data and return
-        return make_response({'orders': [order.serialize() for order in orders]}, 200)
-
-    @jwt_required()
-    def put(self, order_id):
-        # Get current farmer's user ID
-        farmer_id = get_jwt_identity()
-
-        # Check if the order belongs to the current farmer
-        order = Order.query.join(Product).join(Farmer).filter(Farmer.id == farmer_id, Order.id == order_id).first()
-        if not order:
-            return {'error': '404 Not Found', 'message': 'Order not found or does not belong to the farmer'}, 404
-
-        # Update order status (example: mark as completed)
-        data = request.get_json()
-        new_status = data.get('order_status')
-        order.order_status = new_status
-        db.session.commit()
-
-        return make_response({'message': 'Order status updated successfully'}, 200)
-
-    @jwt_required()
-    def delete(self, order_id):
-        # Get current farmer's user ID
-        farmer_id = get_jwt_identity()
-
-        # Check if the order belongs to the current farmer
-        order = Order.query.join(Product).join(Farmer).filter(Farmer.id == farmer_id, Order.id == order_id).first()
-        if not order:
-            return {'error': '404 Not Found', 'message': 'Order not found or does not belong to the farmer'}, 404
-
-        # Delete the order
-        db.session.delete(order)
-        db.session.commit()
-
-        return make_response({'message': 'Order deleted successfully'}, 200)
-#products routes
-class ProductList(Resource):
-    def get(self):
-       
-        products =[ {"id":product.id,"name":product.name,"price":product.price,"image":product.image }for product in Product.query.all()]
-
-        
-        # serialized_products = [product.serialize() for product in products]
-        return make_response(jsonify(products))
-
-
-class FarmerProductList(Resource):
-    @jwt_required()
-    def get(self):
-        farmer_id = get_jwt_identity()
-
-        # Query products associated with the current farmer
-        products = Product.query.filter_by(farmer_id=farmer_id).all()
-
-        # Serialize products data and return
-        serialized_products = [product.serialize() for product in products]
-        return jsonify({'products': serialized_products})
-
-
-class productbyid(Resource):
-    def get(self,productid):
-        product= Product.query.filter_by(id=productid).first()
-        product_data={
-            "id":product.id,
-            "name":product.name,
-        }
-        return make_response(jsonify(product_data))
-
+        current_user_id = get_jwt_identity()
+        orders = Order.query.join(Product).filter(Product.farmer_id == current_user_id).all()
+        return jsonify([order.serialize() for order in orders]), 200
 
 
 
@@ -345,10 +305,13 @@ api.add_resource(Verify, '/verify')
 api.add_resource(CheckSession,'/checksession')
 api.add_resource(Login,'/login')
 api.add_resource(FarmerDetails, '/farmer-details')
-api.add_resource(CustomerOrders, '/customer/orders')
+api.add_resource(CustomerProducts, '/customer/products')
+api.add_resource(CustomerCart, '/customer/cart')
+api.add_resource(CustomerOrders, '/customer/orders', '/customer/orders/<int:order_id>')
+api.add_resource(CustomerPlaceOrder, '/customer/place_order')
+api.add_resource(FarmerAddProduct, '/farmer/add_product')
+api.add_resource(FarmerProducts, '/farmer/products')
 api.add_resource(FarmerOrders, '/farmer/orders')
-# api.add_resource(ProductList, '/products/farmers', endpoint='farmer_products')
-api.add_resource(ProductList, '/products')
-api.add_resource(productbyid,"/product/<int:productid>")
+
 if __name__ == "__main__":
     app.run(port=5555, debug=True)
