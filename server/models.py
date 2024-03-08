@@ -100,7 +100,7 @@ class Product(db.Model, SerializerMixin):
     category = db.Column(db.String)
     image = db.Column(db.String)
     farmer_id = db.Column(db.Integer, db.ForeignKey('farmer.id'))
-    reviews = db.relationship('Reviews', secondary=association_table_product_review, backref='products')  
+    farmer = db.relationship('Farmer', backref='products')
 
     @validates('price')
     def validate_price(self, key, price):
@@ -112,7 +112,26 @@ class Product(db.Model, SerializerMixin):
     def validate_quantity_available(self, key, quantity_available):
         if quantity_available < 0:
             raise ValueError('Quantity available cannot be negative')
-        return quantity_available  
+        return quantity_available
+    
+    def serialize(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'price': self.price,
+            'description': self.description,
+            'quantity_available': self.quantity_available,
+            'category': self.category,
+            'image': self.image,
+            'farmer': {
+                'id': self.farmer.id,
+                'farm_name': self.farmer.farm_name,
+                'location': self.farmer.location,
+                'contact': self.farmer.contact
+            }
+        }
+  
+    
 
 class Order(db.Model, SerializerMixin):
     __tablename__ = "order"
