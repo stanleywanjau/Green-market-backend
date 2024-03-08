@@ -102,9 +102,20 @@ class Product(db.Model, SerializerMixin):
     farmer_id = db.Column(db.Integer, db.ForeignKey('farmer.id'))
     reviews = db.relationship('Reviews', secondary=association_table_product_review, backref='products')  
 
+    @validates('price')
+    def validate_price(self, key, price):
+        if price <= 0:
+            raise ValueError('Price must be greater than 0')
+        return price
+
+    @validates('quantity_available')
+    def validate_quantity_available(self, key, quantity_available):
+        if quantity_available < 0:
+            raise ValueError('Quantity available cannot be negative')
+        return quantity_available  
+
 class Order(db.Model, SerializerMixin):
     __tablename__ = "order"
-    
     
     id = db.Column(db.Integer, primary_key=True)
     customer_id = db.Column(db.Integer, db.ForeignKey('user.id'))
@@ -115,17 +126,24 @@ class Order(db.Model, SerializerMixin):
     order_status = db.Column(db.String)
     payments = db.relationship('Payment', backref='order')
     products = db.relationship('Product', secondary=association_table_order_product, backref='orders')  
-    
-    
+
     @validates('quantity_ordered')
     def validate_quantity_ordered(self, key, quantity_ordered):
         if quantity_ordered <= 0:
             raise ValueError('Quantity ordered must be greater than 0')
         return quantity_ordered
+
+    @validates('order_status')
+    def validate_order_status(self, key, order_status):
+        valid_statuses = ['Placed', 'Shipped', 'Delivered']
+        if order_status not in valid_statuses:
+            raise ValueError(f'Invalid order status. Must be one of {", ".join(valid_statuses)}')
+        return order_status
+
     def serialize(self):
         return {
             "id": self.id,
-            "order_date": self.order_date.strftime("%Y-%m-%d %H:%M:%S") if self.order_date else None,  # Convert to string format if order_date is not None
+            "order_date": self.order_date.strftime("%Y-%m-%d %H:%M:%S") if self.order_date else None,
             "quantity_ordered": self.quantity_ordered,
             "total_price": self.total_price,
             "order_status": self.order_status,
