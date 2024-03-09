@@ -544,33 +544,43 @@ class FarmerOrders(Resource):
         db.session.commit()
 
         return make_response({'message': f'Order {action} successfully'}, 200)
-class CustomerProducts(Resource):
-    @jwt_required()
+class Products(Resource):
     def get(self):
-        current_user_id = get_jwt_identity()  # Retrieve current user identity
-        
-        # Fetch user object from the database using the user id
-        current_user = User.query.filter_by(id=current_user_id).first()
-        
-        if not current_user:
-            return {'message': 'User not found'}, 404
-
-        if current_user.role != 'customer':
-            return {'message': 'Unauthorized'}, 401
-
-        # Retrieve all products posted by farmers
-        products = Product.query.filter(Product.farmer_id != None).all()
+        products = Product.query.all()
 
         product_data = []
         for product in products:
             product_data.append({
+                    'id': product.id,
+                    'name': product.name,
+                    'price': product.price,
+                    'image': product.image,
+                    'category': product.category,
+                    'farmer_id': product.farmer_id,
+                    'description': product.description,
+                    'quantity_available':product.quantity_available
+                })
+
+        return jsonify(product_data)
+class CustomerProducts(Resource):
+
+    def get(self, product_id):
+    
+       
+
+        # Retrieve all products posted by farmers
+        product = Product.query.filter_by(id=product_id).first()
+
+        # product_data = []
+        # for product in products:
+        product_data = {
                 'id': product.id,
                 'name': product.name,
                 'price': product.price,
                 'image': product.image,
                 'category': product.category,
                 'farmer_id': product.farmer_id
-            })
+            }
 
         return jsonify(product_data)
 class CustomerOrders(Resource):
@@ -809,9 +819,10 @@ api.add_resource(UpdateProduct, '/updateproduct/<int:product_id>')
 # api.add_resource(FarmerOrders, '/farmerorders')
 api.add_resource(FarmerOrders, '/farmerorders', '/farmerorders/<int:order_id>')
 #cutomer
-api.add_resource(CustomerProducts, '/customerproducts')
+api.add_resource(CustomerProducts, '/customerproducts/<int:product_id>')
 api.add_resource(CustomerOrders, '/customerorders')
 api.add_resource(DeleteOrder, '/deleteorder/<int:order_id>')
+api.add_resource(Products, '/productslist')
 #farmer
 api.add_resource(FarmerDetails, '/farmer-details')
 #chatmessage
