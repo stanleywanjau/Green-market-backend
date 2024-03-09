@@ -21,7 +21,7 @@ class Signup(Resource):
         image = request.json.get('image')
         role = request.json.get('role')
 
-        if not (username and email and password and role):
+        if not (username and email  and role):
             return {'error': '422: Unprocessable Entity'}, 422
         if role not in ['farmer', 'customer']:
             return {'error': '422: Unprocessable Entity', 'message': 'Invalid role value'}, 422
@@ -319,7 +319,8 @@ class Reviewperproduct(Resource):
             review_data.append({
                 "id":review.id,
                 "name":review.rating,
-                "comments":review.comments
+                "comments":review.comments,
+                "review_date":review.review_date
             })
         return make_response(jsonify(review_data))
 class ProductReview(Resource):

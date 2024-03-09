@@ -57,10 +57,14 @@ def seed_data():
         db.session.commit()
 
         product1 = Product(name="Apple", price=1, description="Fresh apples", quantity_available=100, category="Fruit", image="https://i.pinimg.com/236x/41/6a/67/416a671f74edf7f2357e3cad537635b5.jpg")
-        product2 = Product(name="Apple", price=1, description="Fresh apples", quantity_available=100, category="Fruit", image="https://i.pinimg.com/236x/41/6a/67/416a671f74edf7f2357e3cad537635b5.jpg")
+        product2 = Product(name="Eggs", price=15, description="Brown hen Eggs", quantity_available=100, category="Animal product", image="https://i.pinimg.com/564x/98/04/e2/9804e24442e977e5cb4da454b81d62af.jpg")
+        product3 = Product(name="Milk", price=65, description="fresh milk from the farmer", quantity_available=10, category="Animal product", image="https://i.pinimg.com/564x/ce/cc/84/cecc84661e9148366b24b6c130138efc.jpg")
+        product4 = Product(name="white meat", price=165, description="Thick chicken thigh ", quantity_available=150, category="Animal product", image="https://i.pinimg.com/564x/a7/ab/95/a7ab95e2c50ccae974c3b701e19bcec1.jpg") 
         product1.farmer = farmer1
         product2.farmer=farmer1
-        db.session.add_all([product1,product2])
+        product3.farmer=farmer1
+        product4.farmer=farmer1
+        db.session.add_all([product1,product2,product3,product4])
         db.session.commit()
 
         # Create order1 and associate it with product1
