@@ -13,7 +13,7 @@ import logging
 # app = Flask(__name__)
 
 from config import db, api, app
-from models import User,Farmer,Order,Product
+from models import User,Farmer,Order,Product,Reviews
 
 # Add a dictionary to store email-OTP mappings
 signup_otp_map = {}
@@ -411,9 +411,38 @@ class productbyid(Resource):
         return make_response(jsonify(product_data))
 
 
+class ReviewsResource(Resource):
+    @jwt_required()
+    def post(self):
+        identity=get_jwt_identity()
+        user = User.query.filter_by(id=identity).first()
+        print(user)
+        if user.role == 'customer':
+            rating=request.json.get("rating")
+            comments=request.json.get("comment")
+            product_id=request.json.get("product_id")
+            reviews=Reviews(rating=rating,comments=comments,product_id=product_id,customer_id=identity)
+            db.session.add(reviews)
+            db.session.commit()
+            return {"message":"review successfully posted "}
+            
+        else:
+             return jsonify(message="Unauthorized access"), 401
+        
+class Reviewperproduct(Resource):
+    def get(self, productid):        
+        reviews = Reviews.query.filter_by(product_id=productid).all()
+        if not reviews:
+            return {"error":"not found","message":"product not found"}
+        review_data=[]
+        for review in reviews:
+            review_data.append({
+                "id":review.id,
+                "name":review.rating,
+                "comments":review.comments
+            })
+        return make_response(jsonify(review_data))
 
-
-    
 api.add_resource(Signup, '/signup', endpoint='signup')
 api.add_resource(Verify, '/verify')
 api.add_resource(CheckSession,'/checksession')
@@ -436,6 +465,8 @@ api.add_resource(FarmerOrders, '/farmer/orders')
 # api.add_resource(ProductList, '/products/farmers', endpoint='farmer_products')
 api.add_resource(ProductList, '/products')
 api.add_resource(productbyid,"/product/<int:productid>")
+api.add_resource(ReviewsResource,'/reviews')
+api.add_resource(Reviewperproduct, '/review/<int:productid>')
 
 
 
