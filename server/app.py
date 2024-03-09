@@ -1,9 +1,10 @@
-from tkinter import messagebox
+from sqlite3 import IntegrityError
 from flask import  jsonify, request, make_response
 from flask_restful import Resource
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from _datetime import datetime
 import random
+from datetime import datetime
 import smtplib
 from models import ChatMessage, User
 import logging
@@ -12,7 +13,7 @@ import logging
 # app = Flask(__name__)
 
 from config import db, api, app
-from models import ChatMessage, User,Farmer
+from models import User,Farmer,Order,Product
 
 # Add a dictionary to store email-OTP mappings
 signup_otp_map = {}
@@ -274,125 +275,141 @@ class FarmerDetails(Resource):
 
         return {'message': 'Farmer details added successfully'}, 201
 
-
-class ChatMessages(Resource):
+class CustomerOrders(Resource):
     @jwt_required()
     def get(self):
-        current_user_id = get_jwt_identity()
-        user = User.query.filter_by(id=current_user_id).first()
+        # Get current user ID
+        user_id = get_jwt_identity()
 
-        if not user:
-            return {'error': 'Not Found', 'message': 'User not found'}, 404
+        # Query orders associated with the current user (customer)
+        orders = Order.query.filter_by(customer_id=user_id).all()
 
-       
-        # 
-        # messages = ChatMessage.query.filter(
-        #     ((ChatMessage.sender_id == current_user_id) & (ChatMessage.receiver_id == receiver_user.id)) |
-        #     ((ChatMessage.sender_id == receiver_user.id) & (ChatMessage.receiver_id == current_user_id))
-        # ).order_by(ChatMessage.timestamp.asc()).all()
-        messages=ChatMessage.query.filter_by(receiver_id=current_user_id).all()
-        # for message  in messages:
-        messages_data = [{
-            'id': message.id,
-            'sender_id': message.sender_id,
-            'receiver_id': message.receiver_id,
-            'message_text': message.message_text,
-            'timestamp': message.timestamp
-        } for message in messages]
+        # Serialize orders data and return
+        return make_response({'orders': [order.serialize() for order in orders]}, 200)
 
-        return make_response(jsonify(messages_data), 200)
-    
-
-class ChatSenderMessages(Resource):
     @jwt_required()
-    def post(self, receiver):
+    def post(self):
+        # Get current user ID
+        user_id = get_jwt_identity()
+
+        # Parse request data
+        data = request.json
+        product_id = data.get('product_id')
+        quantity = data.get('quantity')
+
+        # Check if product_id and quantity are provided
+        if not product_id or not quantity:
+            return make_response({'error': 'Missing fields', 'message': 'Both product_id and quantity are required'}, 400)
+
+        # Validate quantity
         try:
-            current_user_id = get_jwt_identity()
-        except Exception as e:
-            logging.error(f"Error getting JWT identity: {str(e)}")
-            return {'error': 'Unauthorized', 'message': 'Failed to get JWT identity'}, 401
+            quantity = int(quantity)
+            if quantity <= 0:
+                raise ValueError('Quantity must be a positive integer')
+        except ValueError:
+            return make_response({'error': 'Invalid quantity', 'message': 'Quantity must be a positive integer'}, 400)
 
-        user = User.query.filter_by(id=current_user_id).first()
+        # Check if the product exists and handle quantity available
+        product = Product.query.get(product_id)
+        if not product:
+            return make_response({'error': 'Product not found', 'message': 'The specified product does not exist'}, 404)
+        if product.quantity_available < quantity:
+            return make_response({'error': 'Insufficient quantity available', 'message': 'The requested quantity exceeds available stock'}, 400)
 
-        if not user:
-            return {'error': 'Not Found', 'message': 'User not found'}, 404
+        # Create new order
+        try:
+            new_order = Order(customer_id=user_id, product_id=product_id, quantity_ordered=quantity, order_date=datetime.utcnow())
+            db.session.add(new_order)
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            return make_response({'error': 'Database error', 'message': 'Failed to create order'}, 500)
 
-        receiver_user = User.query.filter_by(id=receiver).first()
-
-        if not receiver_user:
-            return {'error': 'Not Found', 'message': 'Receiver not found or not a farmer'}, 404
-
-        message_text = request.json.get('message_text')
-
-        if not message_text:
-            return {'error': 'Unprocessable Entity', 'message': 'Content is required for the chat message'}, 422
-
-        new_message = ChatMessage(sender_id=current_user_id, receiver_id=receiver_user.id, message_text=message_text)
-        db.session.add(new_message)
+        # Decrement product quantity
+        product.quantity_available -= quantity
         db.session.commit()
 
-        return {'message': 'Chat message sent successfully'}, 201
-        
+        return make_response({'message': 'Order placed successfully'}, 201)
 
 
-@jwt_required()
-def get(self, receiver):
-    current_user_id = get_jwt_identity()
-    user = db.session.query(User).get(current_user_id)
-
-    if not user:
-        response_data = {'error': 'Not Found', 'message': 'User not found'}
-        return make_response(jsonify(response_data), 404)
-
-    receiver_user = db.session.query(User).get(receiver)
-
-    if not receiver_user or receiver_user.role != 'customer':
-        response_data = {'error': 'Not Found', 'message': 'Receiver not found or not a customer'}
-        return make_response(jsonify(response_data), 404)
-
-    messages = db.session.query(ChatMessage).filter(
-        ((ChatMessage.sender_id == current_user_id) & (ChatMessage.receiver_id == receiver_user.id)) |
-        ((ChatMessage.sender_id == receiver_user.id) & (ChatMessage.receiver_id == current_user_id))
-    ).order_by(ChatMessage.timestamp.asc()).all()
-
-    messages_data = [
-        {
-            'id': message.id,
-            'sender_id': message.sender_id,
-            'receiver_id': message.receiver_id,
-            'message_text': message.message_text,
-            'timestamp': message.timestamp
-        } for message in messages
-    ]
-
-    return make_response(jsonify(messages_data), 200)
-
-
- 
-
-class delete_messages(Resource):
+class FarmerOrders(Resource):
     @jwt_required()
-    def delete(self, message_id):
-        current_user_id = get_jwt_identity()
-        user = User.query.filter_by(id=current_user_id).first()
+    def get(self):
+        # Get current farmer's user ID
+        farmer_id = get_jwt_identity()
 
-        if not user:
-            return {'error': 'Not Found', 'message': 'User not found'}, 404
+        # Query orders associated with products of the current farmer
+        orders = Order.query.join(Product).join(Farmer).filter(Farmer.id == farmer_id).all()
 
-       # message = ChatMessage.query.get(message_id)
-        message=db.session.get(ChatMessage, message_id)
-    
-        if not message:
-            return {'error': 'Not Found', 'message': 'Message not found'}, 404
+        # Serialize orders data and return
+        return make_response({'orders': [order.serialize() for order in orders]}, 200)
 
-        # Check if the current user is the sender of the message
-        if not (user.id == message.sender_id):
-            return {'error': 'Forbidden', 'message': 'User is not authorized to delete this message'}, 403
+    @jwt_required()
+    def put(self, order_id):
+        # Get current farmer's user ID
+        farmer_id = get_jwt_identity()
 
-        db.session.delete(message)
+        # Check if the order belongs to the current farmer
+        order = Order.query.join(Product).join(Farmer).filter(Farmer.id == farmer_id, Order.id == order_id).first()
+        if not order:
+            return {'error': '404 Not Found', 'message': 'Order not found or does not belong to the farmer'}, 404
+
+        # Update order status (example: mark as completed)
+        data = request.get_json()
+        new_status = data.get('order_status')
+        order.order_status = new_status
         db.session.commit()
 
-        return {'message': 'Chat message deleted successfully'}, 200
+        return make_response({'message': 'Order status updated successfully'}, 200)
+
+    @jwt_required()
+    def delete(self, order_id):
+        # Get current farmer's user ID
+        farmer_id = get_jwt_identity()
+
+        # Check if the order belongs to the current farmer
+        order = Order.query.join(Product).join(Farmer).filter(Farmer.id == farmer_id, Order.id == order_id).first()
+        if not order:
+            return {'error': '404 Not Found', 'message': 'Order not found or does not belong to the farmer'}, 404
+
+        # Delete the order
+        db.session.delete(order)
+        db.session.commit()
+
+        return make_response({'message': 'Order deleted successfully'}, 200)
+#products routes
+class ProductList(Resource):
+    def get(self):
+       
+        products =[ {"id":product.id,"name":product.name,"price":product.price,"image":product.image }for product in Product.query.all()]
+
+        
+        # serialized_products = [product.serialize() for product in products]
+        return make_response(jsonify(products))
+
+
+class FarmerProductList(Resource):
+    @jwt_required()
+    def get(self):
+        farmer_id = get_jwt_identity()
+
+        # Query products associated with the current farmer
+        products = Product.query.filter_by(farmer_id=farmer_id).all()
+
+        # Serialize products data and return
+        serialized_products = [product.serialize() for product in products]
+        return jsonify({'products': serialized_products})
+
+
+class productbyid(Resource):
+    def get(self,productid):
+        product= Product.query.filter_by(id=productid).first()
+        product_data={
+            "id":product.id,
+            "name":product.name,
+        }
+        return make_response(jsonify(product_data))
+
 
 
 
@@ -408,8 +425,16 @@ api.add_resource(delete_messages,'/deletemessage/<int:message_id>')
 
 api.add_resource(DeleteAccount, '/delete-account')
 api.add_resource(FarmerDetails, '/farmer-details')
+
 api.add_resource(ForgotPassword, '/forgot-password')
 api.add_resource(ChangePassword, '/change-password')
+
+
+api.add_resource(CustomerOrders, '/customer/orders')
+api.add_resource(FarmerOrders, '/farmer/orders')
+# api.add_resource(ProductList, '/products/farmers', endpoint='farmer_products')
+api.add_resource(ProductList, '/products')
+api.add_resource(productbyid,"/product/<int:productid>")
 
 if __name__ == "__main__":
     app.run(port=5555, debug=True)
