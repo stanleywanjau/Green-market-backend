@@ -793,24 +793,136 @@ class DeleteOrder(Resource):
     
     
     
+class ChatMessages(Resource):
+    @jwt_required()
+    def get(self):
+        current_user_id = get_jwt_identity()
+        user = User.query.filter_by(id=current_user_id).first()
+
+        if not user:
+            return {'error': 'Not Found', 'message': 'User not found'}, 404
+
+       
+        # 
+        # messages = ChatMessage.query.filter(
+        #     ((ChatMessage.sender_id == current_user_id) & (ChatMessage.receiver_id == receiver_user.id)) |
+        #     ((ChatMessage.sender_id == receiver_user.id) & (ChatMessage.receiver_id == current_user_id))
+        # ).order_by(ChatMessage.timestamp.asc()).all()
+        messages=ChatMessage.query.filter_by(receiver_id=current_user_id).all()
+        # for message  in messages:
+        messages_data = [{
+            'id': message.id,
+            'sender_id': message.sender_id,
+            'receiver_id': message.receiver_id,
+            'message_text': message.message_text,
+            'timestamp': message.timestamp
+        } for message in messages]
+
+        return make_response(jsonify(messages_data), 200)
+    
+
+class ChatSenderMessages(Resource):
+    @jwt_required()
+    def post(self, receiver):
+        try:
+            current_user_id = get_jwt_identity()
+        except Exception as e:
+            logging.error(f"Error getting JWT identity: {str(e)}")
+            return {'error': 'Unauthorized', 'message': 'Failed to get JWT identity'}, 401
+
+        user = User.query.filter_by(id=current_user_id).first()
+
+        if not user:
+            return {'error': 'Not Found', 'message': 'User not found'}, 404
+
+        receiver_user = User.query.filter_by(id=receiver).first()
+
+        if not receiver_user:
+            return {'error': 'Not Found', 'message': 'Receiver not found or not a farmer'}, 404
+
+        message_text = request.json.get('message_text')
+
+        if not message_text:
+            return {'error': 'Unprocessable Entity', 'message': 'Content is required for the chat message'}, 422
+
+        new_message = ChatMessage(sender_id=current_user_id, receiver_id=receiver_user.id, message_text=message_text)
+        db.session.add(new_message)
+        db.session.commit()
+
+        return {'message': 'Chat message sent successfully'}, 201
+        
 
 
+    @jwt_required()
+    def get(self, receiver):
+        current_user_id = get_jwt_identity()
+        user = db.session.query(User).get(current_user_id)
+
+        if not user:
+            response_data = {'error': 'Not Found', 'message': 'User not found'}
+            return make_response(jsonify(response_data), 404)
+
+        receiver_user = db.session.query(User).get(receiver)
+
+        if not receiver_user or receiver_user.role != 'customer':
+            response_data = {'error': 'Not Found', 'message': 'Receiver not found or not a customer'}
+            return make_response(jsonify(response_data), 404)
+
+        messages = db.session.query(ChatMessage).filter(
+            ((ChatMessage.sender_id == current_user_id) & (ChatMessage.receiver_id == receiver_user.id)) |
+            ((ChatMessage.sender_id == receiver_user.id) & (ChatMessage.receiver_id == current_user_id))
+        ).order_by(ChatMessage.timestamp.asc()).all()
+
+        messages_data = [
+            {
+                'id': message.id,
+                'sender_id': message.sender_id,
+                'receiver_id': message.receiver_id,
+                'message_text': message.message_text,
+                'timestamp': message.timestamp
+            } for message in messages
+        ]
+
+        return make_response(jsonify(messages_data), 200)
 
 
+ 
+
+class delete_messages(Resource):
+    @jwt_required()
+    def delete(self, message_id):
+        current_user_id = get_jwt_identity()
+        user = User.query.filter_by(id=current_user_id).first()
+
+        if not user:
+            return {'error': 'Not Found', 'message': 'User not found'}, 404
+
+       # message = ChatMessage.query.get(message_id)
+        message=db.session.get(ChatMessage, message_id)
+    
+        if not message:
+            return {'error': 'Not Found', 'message': 'Message not found'}, 404
+
+        # Check if the current user is the sender of the message
+        if not (user.id == message.sender_id):
+            return {'error': 'Forbidden', 'message': 'User is not authorized to delete this message'}, 403
+
+        db.session.delete(message)
+        db.session.commit()
+
+        return {'message': 'Chat message deleted successfully'}, 200
+
+
+#authetification
 api.add_resource(Signup, '/signup', endpoint='signup')
 api.add_resource(Verify, '/verify')
 api.add_resource(CheckSession,'/checksession')
 api.add_resource(Login,'/login')
 api.add_resource(DeleteAccount, '/delete-account')
 api.add_resource(FarmerDetails, '/farmer-details')
-
-
 api.add_resource(ForgotPassword, '/forgot-password')
 api.add_resource(ChangePassword, '/change-password')
-
-
-
-
+#review
 api.add_resource(ReviewsResource,'/reviews')
 api.add_resource(Reviewperproduct, '/review/<int:productid>')
 api.add_resource(ProductReview,'/deleteReview/<int:review_id>')
@@ -825,10 +937,12 @@ api.add_resource(FarmerOrders, '/farmerorders', '/farmerorders/<int:order_id>')
 api.add_resource(CustomerProducts, '/customerproducts')
 api.add_resource(CustomerOrders, '/customerorders')
 api.add_resource(DeleteOrder, '/deleteorder/<int:order_id>')
-
-
-
+#farmer
 api.add_resource(FarmerDetails, '/farmer-details')
+#chatmessage
+api.add_resource(ChatMessages,'/chatmessages')
+api.add_resource(ChatSenderMessages, "/chatsendermessages/<int:receiver>")
+api.add_resource(delete_messages,'/deletemessage/<int:message_id>')
 
 if __name__ == "__main__":
     app.run(port=5555, debug=True)
