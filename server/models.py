@@ -101,6 +101,7 @@ class Product(db.Model, SerializerMixin):
     image = db.Column(db.String)
     farmer_id = db.Column(db.Integer, db.ForeignKey('farmer.id'))
     reviews = db.relationship('Reviews', secondary=association_table_product_review, backref='products')  
+    # farmer = db.relationship('Farmer', backref='products')
 
 class Order(db.Model, SerializerMixin):
     __tablename__ = "order"
