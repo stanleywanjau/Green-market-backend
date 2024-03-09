@@ -34,8 +34,8 @@ class User(db.Model, SerializerMixin):
     farmer = db.relationship('Farmer', backref='user', uselist=False)
     orders = db.relationship('Order', backref='user')
     reviews = db.relationship('Reviews', backref='user', lazy='dynamic') 
-    sent_messages = db.relationship('ChatMessage', foreign_keys='ChatMessage.sender_id', backref='sender', lazy='dynamic')
-    received_messages = db.relationship('ChatMessage', foreign_keys='ChatMessage.receiver_id', backref='receiver', lazy='dynamic')
+    sent_messages = db.relationship('ChatMessage', foreign_keys='ChatMessage.sender_id', backref='sender', lazy='dynamic', cascade="all, delete")
+    received_messages = db.relationship('ChatMessage', foreign_keys='ChatMessage.receiver_id', backref='receiver', lazy='dynamic', cascade="all, delete")
     
     
     @hybrid_property
@@ -81,7 +81,7 @@ class Reviews(db.Model, SerializerMixin):
     product_id = db.Column(db.Integer, db.ForeignKey('product.id')) 
     rating = db.Column(db.Integer)
     comments = db.Column(db.String)
-    review_date = db.Column(db.Date)
+    review_date = db.Column(db.Date,default=datetime.utcnow)
     
     @validates('rating')
     def validate_rating(self, key, rating):
@@ -101,14 +101,16 @@ class Product(db.Model, SerializerMixin):
     image = db.Column(db.String)
     farmer_id = db.Column(db.Integer, db.ForeignKey('farmer.id'))
     reviews = db.relationship('Reviews', secondary=association_table_product_review, backref='products')  
+    # farmer = db.relationship('Farmer', backref='products')
 
 class Order(db.Model, SerializerMixin):
     __tablename__ = "order"
     
+    
     id = db.Column(db.Integer, primary_key=True)
     customer_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'))  
-    order_date = db.Column(db.Date)
+    order_date = db.Column(db.DateTime, default=datetime.utcnow)  # Automatically set the order date
     quantity_ordered = db.Column(db.Integer)
     total_price = db.Column(db.Integer)  
     order_status = db.Column(db.String)
@@ -121,7 +123,14 @@ class Order(db.Model, SerializerMixin):
         if quantity_ordered <= 0:
             raise ValueError('Quantity ordered must be greater than 0')
         return quantity_ordered
-
+    def serialize(self):
+        return {
+            "id": self.id,
+            "order_date": self.order_date.strftime("%Y-%m-%d %H:%M:%S") if self.order_date else None,  # Convert to string format if order_date is not None
+            "quantity_ordered": self.quantity_ordered,
+            "total_price": self.total_price,
+            "order_status": self.order_status,
+        }
 class Payment(db.Model, SerializerMixin):
     __tablename__ = "payment"
     

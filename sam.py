@@ -1,23 +1,14 @@
 from flask import  jsonify, request, make_response
-from sqlalchemy.orm.exc import NoResultFound
 from flask_restful import Resource
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
-from _datetime import datetime
 import random
-from datetime import datetime
 import smtplib
-from models import ChatMessage, User
-import logging
-
-
-# app = Flask(__name__)
 
 from config import db, api, app
-from models import User,Farmer
+from models import User,Farmer,Order,Product
 
 # Add a dictionary to store email-OTP mappings
 signup_otp_map = {}
-reset_otp_map ={}
 
 class Signup(Resource):
     def post(self):
@@ -31,14 +22,6 @@ class Signup(Resource):
             return {'error': '422: Unprocessable Entity'}, 422
         if role not in ['farmer', 'customer']:
             return {'error': '422: Unprocessable Entity', 'message': 'Invalid role value'}, 422
-        
-        existing_user_email = User.query.filter_by(email=email).first()
-        existing_user_username = User.query.filter_by(username=username).first()
-
-        if existing_user_email:
-            return {'error': '409 Conflict', 'message': 'Email already exists'}, 409
-        if existing_user_username:
-            return {'error': '409 Conflict', 'message': 'Username already exists'}, 409
 
         # Generate OTP
         otp = ''.join([str(random.randint(0, 9)) for _ in range(6)])
@@ -50,7 +33,7 @@ class Signup(Resource):
         send_otp_email(email, otp)
 
         # Return the email for verification
-        return {'email': email,"message":f"OTP sent to your email - {email}"}, 200
+        return {'email': email}, 200
 
 class Verify(Resource):
     def post(self):
@@ -61,13 +44,6 @@ class Verify(Resource):
         stored_otp = signup_otp_map.get(email)
 
         if stored_otp and verify_otp(stored_otp, otp_user):
-            # existing_user_email = User.query.filter_by(email=email).first()
-            # existing_user_username = User.query.filter_by(username=username).first()
-
-            # if existing_user_email:
-            #     return {'error': '409 Conflict', 'message': 'Email already exists'}, 409
-            # if existing_user_username:
-            #     return {'error': '409 Conflict', 'message': 'Username already exists'}, 409
             # Create a new user instance
             username = request.json.get('username')
             password = request.json.get('password')
@@ -190,58 +166,6 @@ class Login(Resource):
 
         access_token = create_access_token(identity=user.id)
         return {'access_token': access_token}, 200
-
-class DeleteAccount(Resource):
-    @jwt_required()
-    def delete(self):
-        current_user_id = get_jwt_identity()
-        user = User.query.filter_by(id=current_user_id).first()
-
-        if not user:
-            return {'error': '404 Not Found', 'message': 'User not found'}, 404
-
-        db.session.delete(user)
-        db.session.commit()
-
-        return {'message': 'User account deleted successfully'}, 200
-class ForgotPassword(Resource):
-    def post(self):
-        email = request.json.get('email')
-        user = User.query.filter_by(email=email).first()
-
-        if not user:
-            return {'error': '404 Not Found', 'message': 'User not found'}, 404
-
-        temporary_password = ''.join([str(random.randint(0, 9)) for _ in range(8)])
-        reset_otp_map[email]=temporary_password
-        # user.password_hash = temporary_password
-        # db.session.commit()
-
-        send_otp_email(email, temporary_password)
-
-        return {'message': f'OTP sent to your email - {email}'}, 200
-class ChangePassword(Resource):
-    def post(self):
-        email = request.json.get('email')
-        otp_user = request.json.get('otp')
-        new_password = request.json.get('new_password')
-
-        stored_otp = reset_otp_map.get(email)
-
-        if stored_otp and verify_otp(stored_otp, otp_user):
-            user = User.query.filter_by(email=email).first()
-
-            if not user:
-                return {'error': '404 Not Found', 'message': 'User not found'}, 404
-
-            user.password_hash = new_password
-            db.session.commit()
-
-            return {'message': 'Password changed successfully'}, 200
-        else:
-            return {'error': '401 Unauthorized', 'message': 'Invalid OTP'}, 401
-
-    
 class FarmerDetails(Resource):
     @jwt_required()
     def post(self):
@@ -276,6 +200,116 @@ class FarmerDetails(Resource):
         return {'message': 'Farmer details added successfully'}, 201
 
 
+# Routes
+class Orders(Resource):
+    @jwt_required()
+    def get(self):
+        current_user_id = get_jwt_identity()
+        user = User.query.filter_by(id=current_user_id).first()
+        if not user:
+            return {'error': '404 Not Found', 'message': 'User not found'}, 404
+
+        if user.role == "customer":
+            orders = Order.query.filter_by(customer_id=current_user_id).all()
+        elif user.role == "farmer":
+            products = Product.query.filter_by(farmer_id=user.farmer.id).all()
+            product_ids = [product.id for product in products]
+            orders = Order.query.filter(Order.product_id.in_(product_ids)).all()
+        else:
+            return {'error': '403 Forbidden', 'message': 'User role not supported for orders'}, 403
+
+        # Serialize orders data as needed before returning
+        return jsonify([order.serialize() for order in orders]), 200
+
+    @jwt_required()
+    def post(self):
+        current_user_id = get_jwt_identity()
+        user = User.query.filter_by(id=current_user_id).first()
+        if not user:
+            return {'error': '404 Not Found', 'message': 'User not found'}, 404
+
+        # Extract order data from the request
+        order_data = request.json
+        product_id = order_data.get('product_id')
+        quantity_ordered = order_data.get('quantity_ordered')
+
+        # Validate the input data
+        if not (product_id and quantity_ordered):
+            return {'error': '422 Unprocessable Entity', 'message': 'Product ID and quantity are required'}, 422
+
+        # Check if the product exists
+        product = Product.query.get(product_id)
+        if not product:
+            return {'error': '404 Not Found', 'message': 'Product not found'}, 404
+
+        # Check if the user is a customer
+        if user.role != "customer":
+            return {'error': '403 Forbidden', 'message': 'Only customers can place orders'}, 403
+
+        # Create the order
+        order = Order(
+            customer_id=current_user_id,
+            product_id=product_id,
+            quantity_ordered=quantity_ordered,
+            total_price=product.price * quantity_ordered,
+            order_date=datetime.utcnow(),  # Assuming the current time is used as the order date
+            order_status="pending"  # Assuming the initial status is "pending"
+        )
+
+        # Add the order to the database
+        db.session.add(order)
+        db.session.commit()
+
+        # Serialize the order data before returning
+        return jsonify(order.serialize()), 201
+
+    @jwt_required()
+    def put(self, order_id):
+        current_user_id = get_jwt_identity()
+        user = User.query.filter_by(id=current_user_id).first()
+        if not user:
+            return {'error': '404 Not Found', 'message': 'User not found'}, 404
+
+        # Extract updated order data from the request
+        updated_order_data = request.json
+        quantity_ordered = updated_order_data.get('quantity_ordered')
+
+        # Validate the input data
+        if not quantity_ordered:
+            return {'error': '422 Unprocessable Entity', 'message': 'Quantity is required'}, 422
+
+        # Fetch the order to be updated
+        order = Order.query.filter_by(id=order_id, customer_id=current_user_id).first()
+        if not order:
+            return {'error': '404 Not Found', 'message': 'Order not found or unauthorized'}, 404
+
+        # Update the order data
+        order.quantity_ordered = quantity_ordered
+        order.total_price = order.product.price * quantity_ordered
+
+        # Commit the changes to the database
+        db.session.commit()
+
+        # Serialize the updated order data before returning
+        return jsonify(order.serialize()), 200
+
+    @jwt_required()
+    def delete(self, order_id):
+        current_user_id = get_jwt_identity()
+        user = User.query.filter_by(id=current_user_id).first()
+        if not user:
+            return {'error': '404 Not Found', 'message': 'User not found'}, 404
+
+        # Fetch the order to be deleted
+        order = Order.query.filter_by(id=order_id, customer_id=current_user_id).first()
+        if not order:
+            return {'error': '404 Not Found', 'message': 'Order not found or unauthorized'}, 404
+
+        # Delete the order from the database
+        db.session.delete(order)
+        db.session.commit()
+
+        return {'message': 'Order deleted successfully'}, 200
 
 
 
@@ -285,6 +319,7 @@ api.add_resource(Verify, '/verify')
 api.add_resource(CheckSession,'/checksession')
 api.add_resource(Login,'/login')
 api.add_resource(FarmerDetails, '/farmer-details')
+api.add_resource(Orders, '/orders/<int:order_id>', endpoint='orders')
 
 if __name__ == "__main__":
     app.run(port=5555, debug=True)
