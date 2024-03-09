@@ -34,8 +34,8 @@ class User(db.Model, SerializerMixin):
     farmer = db.relationship('Farmer', backref='user', uselist=False)
     orders = db.relationship('Order', backref='user')
     reviews = db.relationship('Reviews', backref='user', lazy='dynamic') 
-    sent_messages = db.relationship('ChatMessage', foreign_keys='ChatMessage.sender_id', backref='sender', lazy='dynamic')
-    received_messages = db.relationship('ChatMessage', foreign_keys='ChatMessage.receiver_id', backref='receiver', lazy='dynamic')
+    sent_messages = db.relationship('ChatMessage', foreign_keys='ChatMessage.sender_id', backref='sender', lazy='dynamic', cascade="all, delete")
+    received_messages = db.relationship('ChatMessage', foreign_keys='ChatMessage.receiver_id', backref='receiver', lazy='dynamic', cascade="all, delete")
     
     
     @hybrid_property
@@ -100,42 +100,12 @@ class Product(db.Model, SerializerMixin):
     category = db.Column(db.String)
     image = db.Column(db.String)
     farmer_id = db.Column(db.Integer, db.ForeignKey('farmer.id'))
-    farmer = db.relationship('Farmer', backref='products')  # Changed backref name to 'products'
+    reviews = db.relationship('Reviews', secondary=association_table_product_review, backref='products')  
+    # farmer = db.relationship('Farmer', backref='products')
 
-    @validates('price')
-    def validate_price(self, key, price):
-        if price <= 0:
-            raise ValueError('Price must be greater than 0')
-        return price
-
-    @validates('quantity_available')
-    def validate_quantity_available(self, key, quantity_available):
-        if quantity_available < 0:
-            raise ValueError('Quantity available cannot be negative')
-        return quantity_available
-    
-    def serialize(self):
-        return {
-            'id': self.id,
-            'name': self.name,
-            'price': self.price,
-            'description': self.description,
-            'quantity_available': self.quantity_available,
-            'category': self.category,
-            'image': self.image,
-            'farmer': {
-                'id': self.farmer.id,
-                'farm_name': self.farmer.farm_name,
-                'location': self.farmer.location,
-                'contact': self.farmer.contact
-            }
-        }
-
-  
-    
-
-class CustomerOrder(db.Model, SerializerMixin):
+class Order(db.Model, SerializerMixin):
     __tablename__ = "order"
+    
     
     id = db.Column(db.Integer, primary_key=True)
     customer_id = db.Column(db.Integer, db.ForeignKey('user.id'))
@@ -146,24 +116,17 @@ class CustomerOrder(db.Model, SerializerMixin):
     order_status = db.Column(db.String)
     payments = db.relationship('Payment', backref='order')
     products = db.relationship('Product', secondary=association_table_order_product, backref='orders')  
-
+    
+    
     @validates('quantity_ordered')
     def validate_quantity_ordered(self, key, quantity_ordered):
         if quantity_ordered <= 0:
             raise ValueError('Quantity ordered must be greater than 0')
         return quantity_ordered
-
-    @validates('order_status')
-    def validate_order_status(self, key, order_status):
-        valid_statuses = ['Placed', 'Shipped', 'Delivered']
-        if order_status not in valid_statuses:
-            raise ValueError(f'Invalid order status. Must be one of {", ".join(valid_statuses)}')
-        return order_status
-
     def serialize(self):
         return {
             "id": self.id,
-            "order_date": self.order_date.strftime("%Y-%m-%d %H:%M:%S") if self.order_date else None,
+            "order_date": self.order_date.strftime("%Y-%m-%d %H:%M:%S") if self.order_date else None,  # Convert to string format if order_date is not None
             "quantity_ordered": self.quantity_ordered,
             "total_price": self.total_price,
             "order_status": self.order_status,
