@@ -795,7 +795,6 @@ api.add_resource(Verify, '/verify')
 api.add_resource(CheckSession,'/checksession')
 api.add_resource(Login,'/login')
 api.add_resource(DeleteAccount, '/delete-account')
-api.add_resource(FarmerDetails, '/farmer-details')
 api.add_resource(ForgotPassword, '/forgot-password')
 api.add_resource(ChangePassword, '/change-password')
 #review
