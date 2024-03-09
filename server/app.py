@@ -2,10 +2,12 @@ from sqlite3 import IntegrityError
 from sqlite3 import IntegrityError
 from flask import  jsonify, request, make_response
 from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.orm.exc import NoResultFound
 from flask_restful import Resource
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from _datetime import datetime
 import random
+from datetime import datetime
 from datetime import datetime
 from datetime import datetime
 import smtplib
@@ -17,10 +19,10 @@ import logging
 
 from config import db, api, app
 from models import User,Farmer,Reviews,Order,Product
+from models import User,Farmer
 
 # Add a dictionary to store email-OTP mappings
 signup_otp_map = {}
-reset_otp_map ={}
 reset_otp_map ={}
 
 class Signup(Resource):
@@ -43,14 +45,6 @@ class Signup(Resource):
             return {'error': '409 Conflict', 'message': 'Email already exists'}, 409
         if existing_user_username:
             return {'error': '409 Conflict', 'message': 'Username already exists'}, 409
-        
-        existing_user_email = User.query.filter_by(email=email).first()
-        existing_user_username = User.query.filter_by(username=username).first()
-
-        if existing_user_email:
-            return {'error': '409 Conflict', 'message': 'Email already exists'}, 409
-        if existing_user_username:
-            return {'error': '409 Conflict', 'message': 'Username already exists'}, 409
 
         # Generate OTP
         otp = ''.join([str(random.randint(0, 9)) for _ in range(6)])
@@ -62,7 +56,6 @@ class Signup(Resource):
         send_otp_email(email, otp)
 
         # Return the email for verification
-        return {'email': email,"message":f"OTP sent to your email - {email}"}, 200
         return {'email': email,"message":f"OTP sent to your email - {email}"}, 200
 
 class Verify(Resource):
@@ -210,6 +203,58 @@ class Login(Resource):
 
         access_token = create_access_token(identity=user.id)
         return {'access_token': access_token}, 200
+
+class DeleteAccount(Resource):
+    @jwt_required()
+    def delete(self):
+        current_user_id = get_jwt_identity()
+        user = User.query.filter_by(id=current_user_id).first()
+
+        if not user:
+            return {'error': '404 Not Found', 'message': 'User not found'}, 404
+
+        db.session.delete(user)
+        db.session.commit()
+
+        return {'message': 'User account deleted successfully'}, 200
+class ForgotPassword(Resource):
+    def post(self):
+        email = request.json.get('email')
+        user = User.query.filter_by(email=email).first()
+
+        if not user:
+            return {'error': '404 Not Found', 'message': 'User not found'}, 404
+
+        temporary_password = ''.join([str(random.randint(0, 9)) for _ in range(8)])
+        reset_otp_map[email]=temporary_password
+        # user.password_hash = temporary_password
+        # db.session.commit()
+
+        send_otp_email(email, temporary_password)
+
+        return {'message': f'OTP sent to your email - {email}'}, 200
+class ChangePassword(Resource):
+    def post(self):
+        email = request.json.get('email')
+        otp_user = request.json.get('otp')
+        new_password = request.json.get('new_password')
+
+        stored_otp = reset_otp_map.get(email)
+
+        if stored_otp and verify_otp(stored_otp, otp_user):
+            user = User.query.filter_by(email=email).first()
+
+            if not user:
+                return {'error': '404 Not Found', 'message': 'User not found'}, 404
+
+            user.password_hash = new_password
+            db.session.commit()
+
+            return {'message': 'Password changed successfully'}, 200
+        else:
+            return {'error': '401 Unauthorized', 'message': 'Invalid OTP'}, 401
+
+    
 
 class DeleteAccount(Resource):
     @jwt_required()
@@ -748,6 +793,10 @@ class DeleteOrder(Resource):
     
     
     
+
+
+
+
 api.add_resource(Signup, '/signup', endpoint='signup')
 api.add_resource(Verify, '/verify')
 api.add_resource(CheckSession,'/checksession')
@@ -779,6 +828,7 @@ api.add_resource(DeleteOrder, '/deleteorder/<int:order_id>')
 
 
 
+api.add_resource(FarmerDetails, '/farmer-details')
 
 if __name__ == "__main__":
     app.run(port=5555, debug=True)
