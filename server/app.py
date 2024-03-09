@@ -173,6 +173,21 @@ class Login(Resource):
 
         access_token = create_access_token(identity=user.id)
         return {'access_token': access_token}, 200
+
+class DeleteAccount(Resource):
+    @jwt_required()
+    def delete(self):
+        current_user_id = get_jwt_identity()
+        user = User.query.filter_by(id=current_user_id).first()
+
+        if not user:
+            return {'error': '404 Not Found', 'message': 'User not found'}, 404
+
+        db.session.delete(user)
+        db.session.commit()
+
+        return {'message': 'User account deleted successfully'}, 200
+    
 class FarmerDetails(Resource):
     @jwt_required()
     def post(self):
@@ -338,6 +353,8 @@ api.add_resource(ChatMessages,'/chatmessages')
 api.add_resource(ChatSenderMessages, "/chatsendermessages/<int:receiver>")
 api.add_resource(delete_messages,'/deletemessage/<int:message_id>')
 
+api.add_resource(DeleteAccount, '/delete-account')
+api.add_resource(FarmerDetails, '/farmer-details')
 
 if __name__ == "__main__":
     app.run(port=5555, debug=True)

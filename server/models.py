@@ -34,8 +34,8 @@ class User(db.Model, SerializerMixin):
     farmer = db.relationship('Farmer', backref='user', uselist=False)
     orders = db.relationship('Order', backref='user')
     reviews = db.relationship('Reviews', backref='user', lazy='dynamic') 
-    sent_messages = db.relationship('ChatMessage', foreign_keys='ChatMessage.sender_id', backref='sender', lazy='dynamic')
-    received_messages = db.relationship('ChatMessage', foreign_keys='ChatMessage.receiver_id', backref='receiver', lazy='dynamic')
+    sent_messages = db.relationship('ChatMessage', foreign_keys='ChatMessage.sender_id', backref='sender', lazy='dynamic', cascade="all, delete")
+    received_messages = db.relationship('ChatMessage', foreign_keys='ChatMessage.receiver_id', backref='receiver', lazy='dynamic', cascade="all, delete")
     
     
     @hybrid_property
