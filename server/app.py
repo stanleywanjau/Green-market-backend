@@ -203,7 +203,7 @@ class ChangePassword(Resource):
 
         stored_otp = reset_otp_map.get(email)
 
-        if stored_otp and verify_otp(stored_otp, otp_user):
+        if stored_otp and verify_otp_reset(stored_otp, otp_user):
             user = User.query.filter_by(email=email).first()
 
             if not user:
@@ -216,7 +216,9 @@ class ChangePassword(Resource):
         else:
             return {'error': '401 Unauthorized', 'message': 'Invalid OTP'}, 401
 
-    
+def verify_otp_reset(stored_otp, otp_user):
+    # Compare the stored OTP with the OTP provided by the user
+    return stored_otp == otp_user   
 
 class DeleteAccount(Resource):
     @jwt_required()
