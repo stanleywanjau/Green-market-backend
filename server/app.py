@@ -559,8 +559,7 @@ class Products(Resource):
                     'image': product.image,
                     'category': product.category,
                     'farmer_id': product.farmer_id,
-                    'description': product.description,
-                    'quantity_available':product.quantity_available
+                
                 })
 
         return jsonify(product_data)
@@ -581,7 +580,9 @@ class CustomerProducts(Resource):
                 'price': product.price,
                 'image': product.image,
                 'category': product.category,
-                'farmer_id': product.farmer_id
+                'farmer_id': product.farmer_id,
+                'description': product.description,
+                'quantity_available':product.quantity_available
             }
 
         return jsonify(product_data)
