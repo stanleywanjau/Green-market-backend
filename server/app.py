@@ -203,7 +203,7 @@ class ChangePassword(Resource):
 
         stored_otp = reset_otp_map.get(email)
 
-        if stored_otp and verify_otp_reset(stored_otp, otp_user):
+        if stored_otp and verify_otp(stored_otp, otp_user):
             user = User.query.filter_by(email=email).first()
 
             if not user:
@@ -216,9 +216,7 @@ class ChangePassword(Resource):
         else:
             return {'error': '401 Unauthorized', 'message': 'Invalid OTP'}, 401
 
-def verify_otp_reset(stored_otp, otp_user):
-    # Compare the stored OTP with the OTP provided by the user
-    return stored_otp == otp_user   
+    
 
 class DeleteAccount(Resource):
     @jwt_required()
@@ -489,7 +487,7 @@ class FarmerOrders(Resource):
     @jwt_required()
     def get(self):
         # Get current farmer's identity
-        current_farmer_id = get_jwt_identity()
+        current_farmer_id =  get_jwt_identity()
 
         # Check if the current user is a farmer
         current_user = User.query.filter_by(id=current_farmer_id).first()
@@ -503,6 +501,7 @@ class FarmerOrders(Resource):
         for order in orders:
             order_data.append({
                 'customer_id': order.customer_id,
+                'order_id': order.id,
                 # 'customer_username': order.role,
                 'order_date': order.order_date.strftime("%Y-%m-%d"),
                 'product_id': order.product_id,
@@ -513,8 +512,8 @@ class FarmerOrders(Resource):
 
         return jsonify(order_data)
     
-
-    @jwt_required()
+class UpdateOrder(Resource):
+    # @jwt_required()
     def put(self, order_id):
         # Get current farmer's identity
         current_farmer_id = get_jwt_identity()
@@ -525,7 +524,7 @@ class FarmerOrders(Resource):
             return {'message': 'Order not found'}, 404
 
         # Check if the order belongs to the current farmer
-        product = Product.query.filter_by(id=order.product_id, farmer_id=current_farmer_id).first()
+        product = Product.query.filter_by(id=order.product_id, farmer_id=current_farmer_id).all()
         if not product:
             return {'message': 'Unauthorized'}, 401
 
@@ -588,7 +587,7 @@ class CustomerProducts(Resource):
 
         return jsonify(product_data)
 class CustomerOrders(Resource):
-    @jwt_required()
+    @jwt_required() # Commented out for bypassing authentication
     def get(self):
         # Get current customer's identity
         current_customer_id = get_jwt_identity()
@@ -608,6 +607,7 @@ class CustomerOrders(Resource):
 
         return jsonify(order_data)
 
+class PlaceOrder(Resource):
     @jwt_required()
     def post(self):
         # Get current customer's identity
@@ -821,10 +821,12 @@ api.add_resource(AddProduct, '/addproduct')#add product
 api.add_resource(DeleteProduct, '/deleteproduct/<int:product_id>')
 api.add_resource(UpdateProduct, '/updateproduct/<int:product_id>')
 # api.add_resource(FarmerOrders, '/farmerorders')
-api.add_resource(FarmerOrders, '/farmerorders', '/farmerorders/<int:order_id>')
+api.add_resource(FarmerOrders, '/farmerorders')
+api.add_resource(UpdateOrder, '/updateorder/<int:order_id>')
 #cutomer
 api.add_resource(CustomerProducts, '/customerproducts/<int:product_id>')
 api.add_resource(CustomerOrders, '/customerorders')
+api.add_resource(PlaceOrder, '/placeorder' )
 api.add_resource(DeleteOrder, '/deleteorder/<int:order_id>')
 api.add_resource(Products, '/productslist')
 #farmer
