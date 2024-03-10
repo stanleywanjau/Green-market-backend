@@ -484,10 +484,10 @@ class DeleteProduct(Resource):
         return make_response({'message': 'Product deleted successfully'})
     
 class FarmerOrders(Resource):
-    # @jwt_required()
+    @jwt_required()
     def get(self):
         # Get current farmer's identity
-        current_farmer_id = 4
+        current_farmer_id =  get_jwt_identity()
 
         # Check if the current user is a farmer
         current_user = User.query.filter_by(id=current_farmer_id).first()
@@ -516,7 +516,7 @@ class UpdateOrder(Resource):
     # @jwt_required()
     def put(self, order_id):
         # Get current farmer's identity
-        current_farmer_id = 4
+        current_farmer_id = get_jwt_identity()
 
         # Retrieve the order
         order = Order.query.get(order_id)
@@ -587,10 +587,10 @@ class CustomerProducts(Resource):
 
         return jsonify(product_data)
 class CustomerOrders(Resource):
-    # @jwt_required() # Commented out for bypassing authentication
+    @jwt_required() # Commented out for bypassing authentication
     def get(self):
         # Get current customer's identity
-        current_customer_id = 1
+        current_customer_id = get_jwt_identity()
 
         # Retrieve orders made by the current customer
         orders = Order.query.filter_by(customer_id=current_customer_id).all()
@@ -608,10 +608,10 @@ class CustomerOrders(Resource):
         return jsonify(order_data)
 
 class PlaceOrder(Resource):
-    # @jwt_required()
+    @jwt_required()
     def post(self):
         # Get current customer's identity
-        current_customer_id = 1
+        current_customer_id = get_jwt_identity()
 
         # Parse order data from request
         data = request.json
@@ -664,10 +664,10 @@ class PlaceOrder(Resource):
             return {'message': 'Failed to place order: ' + str(e)}, 500
 
 class DeleteOrder(Resource):
-    # @jwt_required()
+    @jwt_required()
     def delete(self, order_id):
         # Get current customer's identity
-        current_customer_id = 1
+        current_customer_id = get_jwt_identity()
 
         # Retrieve the order
         order = Order.query.filter_by(id=order_id, customer_id=current_customer_id).first()
