@@ -194,7 +194,7 @@ class ForgotPassword(Resource):
         
         send_otp_email(email, temporary_password)
 
-        return {'message': f'OTP sent to your email - {email}'}, 200
+        return {'email': email,'message': f'OTP sent to your email - {email}'}, 200
 class ChangePassword(Resource):
     def post(self):
         email = request.json.get('email')
