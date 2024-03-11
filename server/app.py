@@ -5,23 +5,44 @@ import random
 from datetime import datetime
 import smtplib
 import logging
+import os
 from config import db, api, app
 from models import User,Farmer,Reviews,Order,Product,ChatMessage
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
+
+# Initialize Flask app
+# app = Flask(__name__)
+
+# Configure Cloudinary with your credentials
+cloudinary.config(
+  cloud_name='df3sytxef',
+  api_key='985443855749731',
+  api_secret='lo3vNIHKIgq9R6CZOdcAcQAUKjA'
+)
 
 
 # Add a dictionary to store email-OTP mappings
 signup_otp_map = {}
 reset_otp_map ={}
 
+# Add a dictionary to store email-OTP mappings
+signup_otp_map = {}
+reset_otp_map = {}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'png', 'jpg', 'jpeg', 'gif'}
+
 class Signup(Resource):
     def post(self):
         username = request.json.get('username')
         email = request.json.get('email')
         password = request.json.get('password')
-        image = request.json.get('image')
+        image_file = request.files.get('image')  # Change to files
         role = request.json.get('role')
 
-        if not (username and email  and role):
+        if not (username and email and role):
             return {'error': '422: Unprocessable Entity'}, 422
         if role not in ['farmer', 'customer']:
             return {'error': '422: Unprocessable Entity', 'message': 'Invalid role value'}, 422
@@ -43,8 +64,24 @@ class Signup(Resource):
         # Send OTP via Email
         send_otp_email(email, otp)
 
-        # Return the email for verification
-        return {'email': email,"message":f"OTP sent to your email - {email}"}, 200
+        # Validate image file and upload to Cloudinary if provided
+        image_url = None
+        if image_file:
+            if allowed_file(image_file.filename):
+                try:
+                    # Upload image to Cloudinary
+                    image_upload_result = cloudinary.uploader.upload(image_file)
+                    image_url = image_upload_result['secure_url']
+                except Exception as e:
+                    return {'error': '500 Internal Server Error', 'message': f'Error uploading image: {str(e)}'}, 500
+            else:
+                return {'error': '422: Unprocessable Entity', 'message': 'Invalid file type. Only images are allowed'}, 422
+
+        # Return the email and optionally the image URL for verification
+        response_data = {'email': email, "message": f"OTP sent to your email - {email}"}
+        if image_url:
+            response_data['image_url'] = image_url
+        return response_data, 200
 
 class Verify(Resource):
     def post(self):
@@ -57,9 +94,9 @@ class Verify(Resource):
         if stored_otp and verify_otp(stored_otp, otp_user):
             username = request.json.get('username')
             password = request.json.get('password')
-            image = request.json.get('image')
+            image_url = request.json.get('image_url')  # Change to image_url
             role = request.json.get('role')
-            new_user = User(username=username, email=email, image=image, role=role)
+            new_user = User(username=username, email=email, image=image_url, role=role)
             new_user.password_hash = password
             
             # Commit the new user to the database
@@ -73,6 +110,7 @@ class Verify(Resource):
             return {'access_token': access_token, 'message': 'User registered successfully'}, 201
         else:
             return {'error': '401 Unauthorized', 'message': 'Invalid OTP'}, 401
+
 
 def send_otp_email(email, otp):
     # This function sends the OTP via email using SMTP
@@ -157,7 +195,6 @@ class CheckSession(Resource):
                 "farm_name": user.farmer.farm_name,
                 "location": user.farmer.location,
                 "contact": user.farmer.contact
-                
             }
             user_data["farmer"] = farmer_data
 
@@ -375,7 +412,8 @@ class FarmerProducts(Resource):
             })
 
         return make_response(jsonify(products_data))
-class AddProduct(Resource):        
+
+class AddProduct(Resource):
     @jwt_required()
     def post(self):
         # Get current farmer's identity
@@ -387,16 +425,16 @@ class AddProduct(Resource):
             return {'message': 'Unauthorized'}, 401
 
         # Parse product data from request
-        data = request.json
+        data = request.form
         name = data.get('name')
         description = data.get('description')
-        image = data.get('image')
+        image_file = request.files.get('image')
         price = data.get('price')
         quantity_available = data.get('quantity_available')
         category = data.get('category')
 
         # Validate product data
-        if not all([name, description, image, price, quantity_available, category]):
+        if not all([name, description, image_file, price, quantity_available, category]):
             return {'message': 'Missing product information'}, 400
 
         # Convert quantity_available to integer
@@ -407,13 +445,25 @@ class AddProduct(Resource):
 
         # Validate quantity_available
         if quantity_available <= 0:
-            return make_response({'message': 'Quantity available must be greater than 0'}, 400)
+            return {'message': 'Quantity available must be greater than 0'}, 400
+
+        # Check if file uploaded and is an image
+        if image_file.filename == '':
+            return {'message': 'No image selected for upload'}, 400
+        if not allowed_file(image_file.filename):
+            return {'message': 'Invalid file type. Only images are allowed'}, 400
+
+        # Upload image to Cloudinary
+        try:
+            image_upload_result = cloudinary.uploader.upload(image_file)
+        except Exception as e:
+            return {'message': f'Error uploading image: {str(e)}'}, 500
 
         # Create a new product
         new_product = Product(
             name=name,
             description=description,
-            image=image,
+            image=image_upload_result['secure_url'],  # Store Cloudinary URL
             price=price,
             quantity_available=quantity_available,
             category=category,
@@ -424,8 +474,12 @@ class AddProduct(Resource):
         db.session.add(new_product)
         db.session.commit()
 
-        return make_response({'message': 'Product added successfully'}, 201)
-class UpdateProduct(Resource):    
+        return {'message': 'Product added successfully'}, 201
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'png', 'jpg', 'jpeg', 'gif'}
+
+class UpdateProduct(Resource):
     @jwt_required()
     def put(self, product_id):
         # Get current farmer's identity
@@ -442,14 +496,12 @@ class UpdateProduct(Resource):
             return make_response({'message': 'Product not found'}, 404)
 
         # Parse updated product data from request
-        data = request.json
+        data = request.form
         # Update fields if they exist in the request data
         if 'name' in data:
             product.name = data['name']
         if 'description' in data:
             product.description = data['description']
-        if 'image' in data:
-            product.image = data['image']
         if 'price' in data:
             product.price = data['price']
         if 'quantity_available' in data:
@@ -457,10 +509,31 @@ class UpdateProduct(Resource):
         if 'category' in data:
             product.category = data['category']
 
+        # Check if an image file is included in the request
+        if 'image' in request.files:
+            image_file = request.files['image']
+            # Check if file uploaded and is an image
+            if image_file.filename == '':
+                return {'message': 'No image selected for upload'}, 400
+            if not allowed_file(image_file.filename):
+                return {'message': 'Invalid file type. Only images are allowed'}, 400
+
+            # Upload image to Cloudinary
+            try:
+                image_upload_result = cloudinary.uploader.upload(image_file)
+            except Exception as e:
+                return {'message': f'Error uploading image: {str(e)}'}, 500
+
+            # Update product image with Cloudinary URL
+            product.image = image_upload_result['secure_url']
+
         # Commit changes to the database
         db.session.commit()
 
         return make_response({'message': 'Product updated successfully'})
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'png', 'jpg', 'jpeg', 'gif'}
+
 class DeleteProduct(Resource):
     @jwt_required()    
     def delete(self, product_id):
@@ -513,7 +586,7 @@ class FarmerOrders(Resource):
         return jsonify(order_data)
     
 class UpdateOrder(Resource):
-    # @jwt_required()
+    @jwt_required()
     def put(self, order_id):
         # Get current farmer's identity
         current_farmer_id = get_jwt_identity()
