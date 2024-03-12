@@ -391,12 +391,12 @@ class FarmerProducts(Resource):
         current_farmer_id = get_jwt_identity()
 
         # Check if the current user is a farmer
-        current_user = User.query.filter_by(id=current_farmer_id).first()
-        if not current_user or current_user.role != 'farmer':
+        farm_id = Farmer.query.filter_by(user_id=current_farmer_id).first()
+        if not farm_id :
             return {'message': 'Unauthorized'}, 401
 
         # Retrieve all products belonging to the current farmer
-        products = Product.query.filter_by(farmer_id=current_farmer_id).all()
+        products = Product.query.filter_by(farmer_id=farm_id.id).all()
 
         # Prepare response data
         products_data = []
@@ -420,8 +420,8 @@ class AddProduct(Resource):
         current_farmer_id = get_jwt_identity()
 
         # Check if the current user is a farmer
-        current_user = User.query.filter_by(id=current_farmer_id).first()
-        if not current_user or current_user.role != 'farmer':
+        farm_id = Farmer.query.filter_by(user_id=current_farmer_id).first()
+        if not farm_id:
             return {'message': 'Unauthorized'}, 401
 
         # Parse product data from request
@@ -467,7 +467,7 @@ class AddProduct(Resource):
             price=price,
             quantity_available=quantity_available,
             category=category,
-            farmer_id=current_farmer_id
+            farmer_id=farm_id
         )
 
         # Add the product to the database

@@ -156,7 +156,7 @@ class ChatMessage(db.Model, SerializerMixin):
     sender_id = db.Column(db.Integer, db.ForeignKey('user.id', name='fk_sender_id'), nullable=False)
     receiver_id = db.Column(db.Integer, db.ForeignKey('user.id', name='fk_receiver_id'), nullable=False)
     message_text = db.Column(db.String)
-    timestamp = db.Column(db.DateTime)  
+    timestamp = db.Column(db.DateTime , default=datetime.utcnow)  
     
     @validates('message_text')
     def validate_message_text(self, key, message_text):
