@@ -621,7 +621,8 @@ class UpdateOrder(Resource):
         return make_response({'message': f'Order {action} successfully'}, 200)
 class Products(Resource):
     def get(self):
-        products = Product.query.all()
+        # Retrieve only available products
+        products = Product.query.filter(Product.quantity_available > 0).all()
 
         product_data = []
         for product in products:
@@ -631,23 +632,22 @@ class Products(Resource):
                     'price': product.price,
                     'image': product.image,
                     'category': product.category,
+                    'quantity_available': product.quantity_available,
                     'farmer_id': product.farmer_id,
                 
                 })
 
         return jsonify(product_data)
+
 class CustomerProducts(Resource):
 
     def get(self, product_id):
-    
-       
-
-        # Retrieve all products posted by farmers
+        # Retrieve the requested product
         product = Product.query.filter_by(id=product_id).first()
 
-        # product_data = []
-        # for product in products:
-        product_data = {
+        # Check if the product exists and is available
+        if product and product.quantity_available > 0:
+            product_data = {
                 'id': product.id,
                 'name': product.name,
                 'price': product.price,
@@ -655,10 +655,13 @@ class CustomerProducts(Resource):
                 'category': product.category,
                 'farmer_id': product.farmer_id,
                 'description': product.description,
-                'quantity_available':product.quantity_available
+                'quantity_available': product.quantity_available
             }
+            return jsonify(product_data)
+        else:
+            return {'message': 'product out of stock'}, 404
 
-        return jsonify(product_data)
+
 class CustomerOrders(Resource):
     @jwt_required() # Commented out for bypassing authentication
     def get(self):
@@ -710,6 +713,12 @@ class PlaceOrder(Resource):
         if quantity_ordered <= 0:
             return {'message': 'Quantity ordered must be greater than 0'}, 400
 
+        # Check if the requested quantity is available
+        if product.quantity_available == 0:
+            return {'message': 'Sorry, the product is not available at the moment'}, 400
+        elif quantity_ordered > product.quantity_available:
+            return {'message': 'Insufficient quantity available'}, 400
+
         # Calculate total price
         total_price = product.price * quantity_ordered
 
@@ -730,11 +739,19 @@ class PlaceOrder(Resource):
             # Add the order to the database
             db.session.add(new_order)
             db.session.commit()
+
+            # Update quantity_available for the product
+            product.quantity_available -= quantity_ordered
+            db.session.commit()
+
             return {'message': 'Order placed successfully'}, 201
         except Exception as e:
             # Rollback transaction in case of error
             db.session.rollback()
             return {'message': 'Failed to place order: ' + str(e)}, 500
+
+
+
 
 class DeleteOrder(Resource):
     @jwt_required()
@@ -888,21 +905,19 @@ api.add_resource(ChangePassword, '/change-password')
 api.add_resource(ReviewsResource,'/reviews')
 api.add_resource(Reviewperproduct, '/review/<int:productid>')
 api.add_resource(ProductReview,'/deleteReview/<int:review_id>')
-#farmer
-api.add_resource(FarmerProducts, '/farmerproducts')#get all products 
-api.add_resource(AddProduct, '/addproduct')#add product
-api.add_resource(DeleteProduct, '/deleteproduct/<int:product_id>')
-api.add_resource(UpdateProduct, '/updateproduct/<int:product_id>')
-# api.add_resource(FarmerOrders, '/farmerorders')
-api.add_resource(FarmerOrders, '/farmerorders')
-api.add_resource(UpdateOrder, '/updateorder/<int:order_id>')
-#cutomer
-api.add_resource(CustomerProducts, '/customerproducts/<int:product_id>')
-api.add_resource(CustomerOrders, '/customerorders')
-api.add_resource(PlaceOrder, '/placeorder' )
-api.add_resource(DeleteOrder, '/deleteorder/<int:order_id>')
-api.add_resource(Products, '/productslist')
-#farmer
+#products
+api.add_resource(Products, '/productslist') #get all products
+api.add_resource(CustomerProducts, '/product/<int:product_id>')# get product by_id
+api.add_resource(FarmerProducts, '/farmerproducts')#get all products in my inventory as a farmer
+api.add_resource(AddProduct, '/addproduct')#add product in inventory
+api.add_resource(DeleteProduct, '/deleteproduct/<int:product_id>') #delete product from inventory by product_id
+api.add_resource(UpdateProduct, '/updateproduct/<int:product_id>')#update product in inventory by product_id
+api.add_resource(FarmerOrders, '/farmerorders')#get all orders placed by customers
+api.add_resource(UpdateOrder, '/updateorder/<int:order_id>')#update order stat
+api.add_resource(CustomerOrders, '/customerorders')#get all orders placed as a customers
+api.add_resource(PlaceOrder, '/placeorder' )# place order/add_to_cart
+api.add_resource(DeleteOrder, '/deleteorder/<int:order_id>')#delete order by order_id
+
 api.add_resource(FarmerDetails, '/farmer-details')
 #chatmessage
 api.add_resource(ChatMessages,'/chatmessages')
