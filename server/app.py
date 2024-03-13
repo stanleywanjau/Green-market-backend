@@ -25,21 +25,17 @@ cloudinary.config(
 
 # Add a dictionary to store email-OTP mappings
 signup_otp_map = {}
-reset_otp_map ={}
-
-# Add a dictionary to store email-OTP mappings
-signup_otp_map = {}
 reset_otp_map = {}
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'png', 'jpg', 'jpeg', 'gif'}
+generate_default_image = {}
+# Function to generate a default image URL based on the first letter of the username
+def generate_default_image(username):
+    return f'https://via.placeholder.com/150.png/000/ffffff?text={username[0].upper()}'
 
 class Signup(Resource):
     def post(self):
         username = request.json.get('username')
         email = request.json.get('email')
         password = request.json.get('password')
-        image_file = request.files.get('image')  # Change to files
         role = request.json.get('role')
 
         if not (username and email and role):
@@ -64,24 +60,9 @@ class Signup(Resource):
         # Send OTP via Email
         send_otp_email(email, otp)
 
-        # Validate image file and upload to Cloudinary if provided
-        image_url = None
-        if image_file:
-            if allowed_file(image_file.filename):
-                try:
-                    # Upload image to Cloudinary
-                    image_upload_result = cloudinary.uploader.upload(image_file)
-                    image_url = image_upload_result['secure_url']
-                except Exception as e:
-                    return {'error': '500 Internal Server Error', 'message': f'Error uploading image: {str(e)}'}, 500
-            else:
-                return {'error': '422: Unprocessable Entity', 'message': 'Invalid file type. Only images are allowed'}, 422
-
-        # Return the email and optionally the image URL for verification
-        response_data = {'email': email, "message": f"OTP sent to your email - {email}"}
-        if image_url:
-            response_data['image_url'] = image_url
-        return response_data, 200
+        # Return the email and default image URL for verification
+        default_image_url = generate_default_image(username)
+        return {'email': email, 'image_url': default_image_url, "message": f"OTP sent to your email - {email}"}, 200
 
 class Verify(Resource):
     def post(self):
@@ -94,19 +75,19 @@ class Verify(Resource):
         if stored_otp and verify_otp(stored_otp, otp_user):
             username = request.json.get('username')
             password = request.json.get('password')
-            image_url = request.json.get('image_url')  # Change to image_url
             role = request.json.get('role')
-            new_user = User(username=username, email=email, image=image_url, role=role)
+
+            # Commit the new user to the database with default image URL
+            default_image_url = generate_default_image(username)
+            new_user = User(username=username, email=email, image=default_image_url, role=role)
             new_user.password_hash = password
-            
-            # Commit the new user to the database
             db.session.add(new_user)
             db.session.commit()
 
             # Create an access token
             access_token = create_access_token(identity=new_user.id)
 
-            # Return the access token
+            # Return the access token and message
             return {'access_token': access_token, 'message': 'User registered successfully'}, 201
         else:
             return {'error': '401 Unauthorized', 'message': 'Invalid OTP'}, 401
@@ -305,6 +286,72 @@ class FarmerDetails(Resource):
 
         return {'message': 'Farmer details added successfully'}, 201
 
+class ImageUpload(Resource):
+    @jwt_required()
+    def post(self):
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+
+        image_file = request.files.get('image')
+
+        if image_file:
+            try:
+                image_upload_result = cloudinary.uploader.upload(image_file)
+                image_url = image_upload_result['secure_url']
+            except Exception as e:
+                return {'error': '500 Internal Server Error', 'message': f'Error uploading image: {str(e)}'}, 500
+        else:
+            return {'error': '400 Bad Request', 'message': 'No image provided'}, 400
+
+        current_user.image = image_url
+        db.session.commit()
+
+        return {'image_url': image_url}, 200
+
+class ImageUpdate(Resource):
+    @jwt_required()
+    def put(self):
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+
+        image_file = request.files.get('image')
+
+        if image_file:
+            try:
+                image_upload_result = cloudinary.uploader.upload(image_file)
+                image_url = image_upload_result['secure_url']
+            except Exception as e:
+                return {'error': '500 Internal Server Error', 'message': f'Error uploading image: {str(e)}'}, 500
+
+            current_user.image = image_url
+            db.session.commit()
+
+            return {'image_url': image_url}, 200
+        else:
+            return {'error': '400 Bad Request', 'message': 'No image provided'}, 400
+
+class ImageDelete(Resource):
+    @jwt_required()
+    def delete(self):
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+
+        if current_user.image:
+            try:
+                public_id = current_user.image.split('/')[-1].split('.')[0]
+                cloudinary.uploader.destroy(public_id)
+            except Exception as e:
+                return {'error': '500 Internal Server Error', 'message': f'Error deleting image: {str(e)}'}, 500
+
+            # Reset the user's image to default
+            current_user.image = generate_default_image(current_user.username)
+            db.session.commit()
+
+            return {'message': 'Image deleted successfully'}, 200
+        else:
+            return {'error': '404 Not Found', 'message': 'User does not have an image'}, 404
+
+
 
 
 
@@ -420,8 +467,8 @@ class AddProduct(Resource):
         current_farmer_id = get_jwt_identity()
 
         # Check if the current user is a farmer
-        farm_id = Farmer.query.filter_by(user_id=current_farmer_id).first()
-        if not farm_id:
+        farmer = Farmer.query.filter_by(user_id=current_farmer_id).first()
+        if not farmer:
             return {'message': 'Unauthorized'}, 401
 
         # Parse product data from request
@@ -467,7 +514,7 @@ class AddProduct(Resource):
             price=price,
             quantity_available=quantity_available,
             category=category,
-            farmer_id=farm_id
+            farmer_id=farmer.id  # Use the farmer's ID directly
         )
 
         # Add the product to the database
@@ -486,32 +533,45 @@ class UpdateProduct(Resource):
         current_farmer_id = get_jwt_identity()
 
         # Check if the current user is a farmer
-        current_user = User.query.filter_by(id=current_farmer_id).first()
-        if not current_user or current_user.role != 'farmer':
-            return make_response({'message': 'Unauthorized'}, 401)
+        farmer = Farmer.query.filter_by(user_id=current_farmer_id).first()
+        if not farmer:
+            return {'message': 'Unauthorized'}, 401
 
-        # Retrieve the product to update
-        product = Product.query.filter_by(id=product_id, farmer_id=current_farmer_id).first()
+        # Get the product to update
+        product = Product.query.get(product_id)
         if not product:
-            return make_response({'message': 'Product not found'}, 404)
+            return {'message': 'Product not found'}, 404
 
-        # Parse updated product data from request
+        # Check if the product belongs to the current farmer
+        if product.farmer_id != farmer.id:
+            return {'message': 'You are not authorized to update this product'}, 403
+
+        # Parse product data from request
         data = request.form
-        # Update fields if they exist in the request data
-        if 'name' in data:
-            product.name = data['name']
-        if 'description' in data:
-            product.description = data['description']
-        if 'price' in data:
-            product.price = data['price']
-        if 'quantity_available' in data:
-            product.quantity_available = data['quantity_available']
-        if 'category' in data:
-            product.category = data['category']
+        name = data.get('name')
+        description = data.get('description')
+        image_file = request.files.get('image')
+        price = data.get('price')
+        quantity_available = data.get('quantity_available')
+        category = data.get('category')
 
-        # Check if an image file is included in the request
-        if 'image' in request.files:
-            image_file = request.files['image']
+        # Update product fields
+        if name:
+            product.name = name
+        if description:
+            product.description = description
+        if price:
+            product.price = price
+        if quantity_available:
+            try:
+                product.quantity_available = int(quantity_available)
+            except ValueError:
+                return {'message': 'Invalid quantity_available, must be an integer'}, 400
+        if category:
+            product.category = category
+
+        # Handle image update
+        if image_file:
             # Check if file uploaded and is an image
             if image_file.filename == '':
                 return {'message': 'No image selected for upload'}, 400
@@ -521,16 +581,14 @@ class UpdateProduct(Resource):
             # Upload image to Cloudinary
             try:
                 image_upload_result = cloudinary.uploader.upload(image_file)
+                product.image = image_upload_result['secure_url']  # Update image URL
             except Exception as e:
                 return {'message': f'Error uploading image: {str(e)}'}, 500
-
-            # Update product image with Cloudinary URL
-            product.image = image_upload_result['secure_url']
 
         # Commit changes to the database
         db.session.commit()
 
-        return make_response({'message': 'Product updated successfully'})
+        return {'message': 'Product updated successfully'}, 200
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'png', 'jpg', 'jpeg', 'gif'}
 
@@ -541,12 +599,12 @@ class DeleteProduct(Resource):
         current_farmer_id = get_jwt_identity()
 
         # Check if the current user is a farmer
-        current_user = User.query.filter_by(id=current_farmer_id).first()
-        if not current_user or current_user.role != 'farmer':
+        farm_id= Farmer.query.filter_by(user_id=current_farmer_id).first()
+        if not farm_id:
             return {'message': 'Unauthorized'}, 401
 
         # Retrieve the product to delete
-        product = Product.query.filter_by(id=product_id, farmer_id=current_farmer_id).first()
+        product = Product.query.filter_by(id=product_id, farmer_id=farm_id.id).first()
         if not product:
             return {'message': 'Product not found'}, 404
 
@@ -924,5 +982,8 @@ api.add_resource(ChatMessages,'/chatmessages')
 api.add_resource(ChatSenderMessages, "/chatsendermessages/<int:receiver>")
 api.add_resource(delete_messages,'/deletemessage/<int:message_id>')
 
+api.add_resource(ImageUpload, '/uploadimage')
+api.add_resource(ImageUpdate, '/updateimage')
+api.add_resource(ImageDelete, '/deleteimage')
 if __name__ == "__main__":
     app.run(port=5555, debug=True)
