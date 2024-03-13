@@ -589,6 +589,28 @@ class UpdateProduct(Resource):
         db.session.commit()
 
         return {'message': 'Product updated successfully'}, 200
+    
+    @jwt_required()
+    def get(self,product_id):
+        # Get current farmer's identity
+        current_farmer_id = get_jwt_identity()
+
+        # Check if the current user is a farmer
+        farm_id = Farmer.query.filter_by(user_id=current_farmer_id).first()
+        if not farm_id :
+            return {'message': 'Unauthorized'}, 401
+
+        # Retrieve all products belonging to the current farmer
+        product = Product.query.filter_by(farmer_id=farm_id.id,id=product_id).first()
+        product_data={
+            "id":product.id,
+            "name":product.description,
+            "price":product.price,
+            "quantity_available":product.quantity_available,
+            "image":product.image,
+            
+        }
+        return make_response(jsonify(product_data))
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'png', 'jpg', 'jpeg', 'gif'}
 
