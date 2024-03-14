@@ -134,6 +134,7 @@ class CheckSession(Resource):
             "email": user.email,
             "role": user.role,
             "image": user.image,
+            "contact":user.contact,
             "sent_messages": [],
             "received_messages": [],
             "orders": [],
@@ -180,7 +181,7 @@ class CheckSession(Resource):
                 "id": user.farmer.id,
                 "farm_name": user.farmer.farm_name,
                 "location": user.farmer.location,
-                "contact": user.farmer.contact
+                
             }
             user_data["farmer"] = farmer_data
 
