@@ -98,11 +98,78 @@ def seed_data():
                            category="Animal product", image="https://i.pinimg.com/564x/ce/cc/84/cecc84661e9148366b24b6c130138efc.jpg")
         product4 = Product(name="white meat", price=165, description="Thick chicken thigh ", quantity_available=150,
                            category="Animal product", image="https://i.pinimg.com/564x/a7/ab/95/a7ab95e2c50ccae974c3b701e19bcec1.jpg")
+        product5 = Product(name="Carrots", price="200 per kg", description="Fresh from the soil ",                       quantity_available=2000,
+                           category="Farm Product", image="https://unsplash.com/photos/orange-carrots-on-human-hand-ZgDHMMd72I8")
+
+        product6 = Product(name="Broccoli", price="350 per kg", description="Fresh from the soil ",                       quantity_available=400,
+                                category="Farm Product", image="https://unsplash.com/photos/green-broccoli-in-close-up-photography-wpJzb1lX5Ac")
+
+        product7 = Product(name="Potatoes", price="150 per kg", description="Fresh from the soil ", quantity_available=5000,
+                                category="Farm Product", image="https://unsplash.com/photos/brown-potato-lot-B0s3Xndk6tw")
+                                        
+        product8 = Product(name="Lettuce", price= "50" , description="Fresh from the soil ", quantity_available=800,
+                                category="Farm Product", image="https://unsplash.com/photos/purple-and-green-vegetable-plant-s4gWFbWdcWg")                           
+
+        product9 = Product(name="Yellow, red and green bell peppers", price="150 per kg", description="Fresh from the soil ", quantity_available=5000,
+                                category="Farm Product", image="https://unsplash.com/photos orange-bell-peppers-on-white-ceramic-plate-gpP-OkJ5BbI")                        
+
+        product10 = Product(name="Red Onions", price="150 per kg", description="Fresh from the soil ", quantity_available=5000,
+                                category="Farm Product", image="https://unsplash.com/photos/red-onion-on-brown-wooden-table-D9h2-RxM1rE")                         
+
+        product11 = Product(name="Green Peas", price="200 per kg", description="Fresh from the soil ", quantity_available=5000,
+                                category="Farm Product", image="https://unsplash.com/photos/green-peas-in-macro-lens-bwKUJ3Y5JS4")                       
+
+        product12 = Product(name="Chicken", price="500", description="Different types of chicken avilable", quantity_available=800,
+                                category="Farm Product", image="https://unsplash.com/photos/five-brown-hens-on-ground-beside-fence-8wWpDF4Av-Y")
+
+        product13 = Product(name="White Cabbage", price="150", description="Fresh from the soil ", quantity_available=5000,
+                                category="Farm Product", image="https://unsplash.com/photos/brown-potato-lot-B0s3Xndk6tw")
+
+
+        product14 = Product(name="Egg Plant", price="60", description="Fresh from the soil ", quantity_available=5000,
+                                category="Farm Product", image="https://unsplash.com/photos/purple-and-green-vegetable-on-blue-plastic-container-iyEc3PHk2ZM")
+
+        product15 = Product(name="Beetroot", price="150", description="Fresh from the soil ", quantity_available=5000,
+                                category="Farm Product", image="https://unsplash.com/photos/turnips-on-brown-wooden-surface-udo5pIvRfrA")
+
+        product16 = Product(name="Cauliflower", price="100", description="Fresh from the soil ", quantity_available=5000,
+                                category="Farm Product", image="https://unsplash.com/photos/cauliflower-lot-zNsSGYXaeP8")
+
+        product17 = Product(name="Strawberry", price="200 per kg", description="Fruit ", quantity_available=5000,
+                                category="Farm Product", image="https://unsplash.com/photos/strawberry-lot-FCrgmqqvl-w")
+
+        product18 = Product(name="Blueberries", price="200 per kg", description="Fruit ", quantity_available=5000,
+                                category="Farm Product", image="https://unsplash.com/photos/blue-berries-on-brown-tree-branch-K_sWk4fDf28")
+
+        product19 = Product(name="Banana", price="150", description="Fresh from the soil ", quantity_available=5000,
+                                category="Farm Product", image="https://unsplash.com/photos/green-banana-fruit-during-daytime-OrK8DrZuTF8")
+
+        product20 = Product(name="Apples", price="100 per kg", description="Fresh from the soil ", quantity_available=5000,
+                                category="Farm Product", image="https://unsplash.com/photos/red-and-green-apple-fruits-6xyUDUCMYcU")
         product1.farmer = farmer1
         product2.farmer = farmer1
         product3.farmer = farmer1
-        product4.farmer = farmer1
-        db.session.add_all([product1, product2, product3, product4])
+        product4.farmer = farmer2
+        product5.farmer = farmer1
+        product6.farmer = farmer3
+        product7.farmer = farmer2
+        product8.farmer = farmer1
+        product9.farmer = farmer2
+        product10.farmer = farmer1
+        product11.farmer = farmer2
+        product12.farmer = farmer2
+        product13.farmer = farmer3
+        product14.farmer = farmer1
+        product15.farmer = farmer2
+        product16.farmer = farmer3
+        product17.farmer = farmer2
+        product18.farmer = farmer2
+        product19.farmer = farmer1
+        product20.farmer = farmer2
+        
+        db.session.add_all([product1, product2, product3, product4,product5,product6,product7,product8,
+                            product9, product10,product10, product11, product12,product13, product14, product15,
+                               product16, product17, product18, product19, product20])
         db.session.commit()
 
         # Create order1 and associate it with product1
