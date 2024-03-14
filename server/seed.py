@@ -27,6 +27,7 @@ def seed_data():
             username="Cain",
             email="cain@example.com",
             role="customer",
+            contact="04889383433",
             registration_date=datetime.now(),
             image="https://i.pinimg.com/236x/a9/6a/b2/a96ab2f4fa3969802fc17cde9df4b427.jpg"
         )
@@ -36,6 +37,7 @@ def seed_data():
             username="Lorenza",
             email="Lorenza@example.com",
             role="farmer",
+            contact="0488638638",
             registration_date=datetime.now(),
             image="https://i.pinimg.com/236x/4c/31/ca/4c31ca4229f3240ec02151da4c21f888.jpg"
         )
@@ -45,6 +47,7 @@ def seed_data():
             username="Stanley",
             email="Stanleyl@example.com",
             role="customer",
+            contact="04889387383",
             registration_date=datetime.now(),
             image="https://i.pinimg.com/236x/4c/31/ca/4c31ca4229f3240ec02151da4c21f888.jpg"
         )
@@ -53,6 +56,7 @@ def seed_data():
             username="Stacy",
             email="Stacy@example.com",
             role="farmer",
+            contact="04884747",
             registration_date=datetime.now(),
             image="https://i.pinimg.com/236x/4c/31/ca/4c31ca4229f3240ec02151da4c21f888.jpg"
         )
@@ -61,19 +65,20 @@ def seed_data():
             username="Samuel",
             email="Samuel@example.com",
             role="farmer",
+            contact="048865775",
             registration_date=datetime.now(),
             image="https://i.pinimg.com/236x/4c/31/ca/4c31ca4229f3240ec02151da4c21f888.jpg"
         )
         user5.password_hash = "password"
 
         farmer1 = Farmer(farm_name="Green Farms",
-                         location="Somewhere", contact="1234567890")
+                         location="Somewhere", )
         farmer1.user = user2
         farmer2 = Farmer(farm_name="skyfruits",
-                         location="Kenol", contact="1234567890")
+                         location="Kenol")
         farmer2.user = user4
         farmer3 = Farmer(farm_name="joyview",
-                         location="thika", contact="1234567890")
+                         location="thika", )
         farmer3.user = user5
 
         db.session.add_all([user1, user2, user3, user4,

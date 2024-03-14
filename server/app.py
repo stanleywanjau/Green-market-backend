@@ -37,8 +37,9 @@ class Signup(Resource):
         email = request.json.get('email')
         password = request.json.get('password')
         role = request.json.get('role')
+        contact = request.json.get('contact')
 
-        if not (username and email and role):
+        if not (username and email and role and contact):
             return {'error': '422: Unprocessable Entity'}, 422
         if role not in ['farmer', 'customer']:
             return {'error': '422: Unprocessable Entity', 'message': 'Invalid role value'}, 422
@@ -56,9 +57,12 @@ class Signup(Resource):
 
         # Store OTP in the dictionary
         signup_otp_map[email] = otp
+        receiver_email=email
+        subject = 'OTP Verification'
+        body = f'Your OTP for email verification is: {otp}'
 
         # Send OTP via Email
-        send_otp_email(email, otp)
+        send_email(receiver_email, subject, body)
 
         # Return the email and default image URL for verification
         default_image_url = generate_default_image(username)
@@ -76,10 +80,11 @@ class Verify(Resource):
             username = request.json.get('username')
             password = request.json.get('password')
             role = request.json.get('role')
+            contact = request.json.get('contact')
 
             # Commit the new user to the database with default image URL
             default_image_url = generate_default_image(username)
-            new_user = User(username=username, email=email, image=default_image_url, role=role)
+            new_user = User(username=username, email=email, image=default_image_url, role=role,contact=contact)
             new_user.password_hash = password
             db.session.add(new_user)
             db.session.commit()
@@ -93,23 +98,23 @@ class Verify(Resource):
             return {'error': '401 Unauthorized', 'message': 'Invalid OTP'}, 401
 
 
-def send_otp_email(email, otp):
-    # This function sends the OTP via email using SMTP
+# def send_otp_email(email, otp):
+#     # This function sends the OTP via email using SMTP
     
-    smtp_server = 'smtp.gmail.com'
-    smtp_port = 587
-    sender_email = 'stanley.muiruri@student.moringaschool.com'
-    sender_password = 'imei myuf vudn zvah'
+#     smtp_server = 'smtp.gmail.com'
+#     smtp_port = 587
+#     sender_email = 'stanley.muiruri@student.moringaschool.com'
+#     sender_password = 'imei myuf vudn zvah'
 
-    subject = 'OTP Verification'
-    body = f'Your OTP for email verification is: {otp}'
+#     subject = 'OTP Verification'
+#     body = f'Your OTP for email verification is: {otp}'
 
-    message = f'Subject: {subject}\n\n{body}'
+#     message = f'Subject: {subject}\n\n{body}'
 
-    with smtplib.SMTP(smtp_server, smtp_port) as server:
-        server.starttls()
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, email, message)
+#     with smtplib.SMTP(smtp_server, smtp_port) as server:
+#         server.starttls()
+#         server.login(sender_email, sender_password)
+#         server.sendmail(sender_email, email, message)
 
 def verify_otp(stored_otp, otp_user):
     # Compare the stored OTP with the OTP provided by the user
@@ -209,8 +214,13 @@ class ForgotPassword(Resource):
 
         temporary_password = ''.join([str(random.randint(0, 9)) for _ in range(8)])
         reset_otp_map[email]=temporary_password
-        
-        send_otp_email(email, temporary_password)
+        receiver_email=email
+        subject = 'OTP Verification'
+        body = f'Your OTP for email verification is: {temporary_password}'
+
+        # Send OTP via Email
+        send_email(receiver_email, subject, body)
+       
 
         return {'email': email,'message': f'OTP sent to your email - {email}'}, 200
 class ChangePassword(Resource):
@@ -268,18 +278,18 @@ class FarmerDetails(Resource):
         
         farm_name = request.json.get('farm_name')
         location = request.json.get('location')
-        contact = request.json.get('contact')
+        
 
-        if not (farm_name and location and contact):
+        if not (farm_name and location ):
             return {'error': '422 Unprocessable Entity', 'message': 'Missing farmer details'}, 422
 
         
         if user.farmer:
             user.farmer.farm_name = farm_name
             user.farmer.location = location
-            user.farmer.contact = contact
+            
         else:
-            farmer = Farmer(farm_name=farm_name, location=location, contact=contact)
+            farmer = Farmer(farm_name=farm_name, location=location)
             user.farmer = farmer
 
         db.session.commit()
@@ -604,10 +614,11 @@ class UpdateProduct(Resource):
         product = Product.query.filter_by(farmer_id=farm_id.id,id=product_id).first()
         product_data={
             "id":product.id,
-            "name":product.description,
+            "name":product.name,
             "price":product.price,
             "quantity_available":product.quantity_available,
             "image":product.image,
+            "description":product.description
             
         }
         return make_response(jsonify(product_data))
@@ -640,22 +651,22 @@ class FarmerOrders(Resource):
     @jwt_required()
     def get(self):
         # Get current farmer's identity
-        current_farmer_id =  get_jwt_identity()
+        current_farmer_id = get_jwt_identity()
 
         # Check if the current user is a farmer
-        current_user = User.query.filter_by(id=current_farmer_id).first()
-        if not current_user or current_user.role != 'farmer':
+        farm = Farmer.query.filter_by(user_id=current_farmer_id).first()
+        if not farm:
             return {'message': 'Unauthorized'}, 401
 
         # Retrieve orders made by customers for the current farmer's products
-        orders = Order.query.join(Product).filter(Product.farmer_id == current_farmer_id).all()
+        orders = Order.query.join(Product).filter(Product.farmer_id == farm.id).all()
 
         order_data = []
         for order in orders:
+            customer = User.query.get(order.customer_id)
             order_data.append({
-                'customer_id': order.customer_id,
+                'customer_username': customer.username,
                 'order_id': order.id,
-                # 'customer_username': order.role,
                 'order_date': order.order_date.strftime("%Y-%m-%d"),
                 'product_id': order.product_id,
                 'quantity_ordered': order.quantity_ordered,
@@ -664,12 +675,15 @@ class FarmerOrders(Resource):
             })
 
         return jsonify(order_data)
-    
+
 class UpdateOrder(Resource):
     @jwt_required()
     def put(self, order_id):
         # Get current farmer's identity
         current_farmer_id = get_jwt_identity()
+        farm = Farmer.query.filter_by(user_id=current_farmer_id).first()
+        if not farm:
+            return {'message': 'Unauthorized'}, 401
 
         # Retrieve the order
         order = Order.query.get(order_id)
@@ -677,7 +691,7 @@ class UpdateOrder(Resource):
             return {'message': 'Order not found'}, 404
 
         # Check if the order belongs to the current farmer
-        product = Product.query.filter_by(id=order.product_id, farmer_id=current_farmer_id).all()
+        product = Product.query.filter_by(id=order.product_id, farmer_id=farm.id).first()
         if not product:
             return {'message': 'Unauthorized'}, 401
 
@@ -697,8 +711,33 @@ class UpdateOrder(Resource):
 
         # Commit changes to the database
         db.session.commit()
+        customer = User.query.get(order.customer_id)
+        product_name = Product.query.get(order.product_id).name
+        
+        receiver_email=customer.email
+        subject = 'Order updates'
+        body = f'Your order for {product_name} has been {action}. Thank you for shopping with us!'
+        
+        send_email(receiver_email, subject, body)
 
         return make_response({'message': f'Order {action} successfully'}, 200)
+def send_email(receiver_email, subject, body):
+    smtp_server = 'smtp.gmail.com'
+    smtp_port = 587
+    sender_email = 'stanley.muiruri@student.moringaschool.com'
+    sender_password = 'imei myuf vudn zvah'
+
+    subject = subject
+    body = body
+
+
+    message = f'Subject: {subject}\n\n{body}'
+
+    with smtplib.SMTP(smtp_server, smtp_port) as server:
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, receiver_email, message)
+    
 class Products(Resource):
     def get(self):
         # Retrieve only available products
@@ -706,6 +745,7 @@ class Products(Resource):
 
         product_data = []
         for product in products:
+            farmer =Farmer.query.filter_by(id=product.farmer_id).first()
             product_data.append({
                     'id': product.id,
                     'name': product.name,
@@ -714,6 +754,7 @@ class Products(Resource):
                     'category': product.category,
                     'quantity_available': product.quantity_available,
                     'farmer_id': product.farmer_id,
+                    "location":farmer.location
                 
                 })
 
@@ -973,7 +1014,7 @@ class delete_messages(Resource):
         return {'message': 'Chat message deleted successfully'}, 200
 
 
-#authetification
+#authentification
 api.add_resource(Signup, '/signup', endpoint='signup')
 api.add_resource(Verify, '/verify')
 api.add_resource(CheckSession,'/checksession')
