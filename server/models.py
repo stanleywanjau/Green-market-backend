@@ -31,7 +31,7 @@ class User(db.Model, SerializerMixin):
     role = db.Column(db.String)
     registration_date = db.Column(db.DateTime,default=datetime.utcnow)
     image = db.Column(db.String)
-    contact=db.Column(db.String)
+    contact = db.Column(db.String, unique=True)
     farmer = db.relationship('Farmer', backref='user', uselist=False)
     orders = db.relationship('Order', backref='user')
     reviews = db.relationship('Reviews', backref='user', lazy='dynamic') 
