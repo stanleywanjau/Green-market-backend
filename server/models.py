@@ -137,9 +137,9 @@ class Payment(db.Model, SerializerMixin):
     id = db.Column(db.Integer, primary_key=True)
     order_id = db.Column(db.Integer, db.ForeignKey('order.id'))
     payment_amount = db.Column(db.Integer)  
-    payment_date = db.Column(db.Date)
-    payment_method = db.Column(db.String)
-    status = db.Column(db.String)
+    payment_date = db.Column(db.Date,default=datetime.utcnow)
+    payment_method = db.Column(db.String ,default='mpesa')
+    status = db.Column(db.String,default='In Process')
     transaction_id = db.Column(db.Integer)
     
     
