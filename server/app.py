@@ -98,23 +98,7 @@ class Verify(Resource):
             return {'error': '401 Unauthorized', 'message': 'Invalid OTP'}, 401
 
 
-# def send_otp_email(email, otp):
-#     # This function sends the OTP via email using SMTP
-    
-#     smtp_server = 'smtp.gmail.com'
-#     smtp_port = 587
-#     sender_email = 'stanley.muiruri@student.moringaschool.com'
-#     sender_password = 'imei myuf vudn zvah'
 
-#     subject = 'OTP Verification'
-#     body = f'Your OTP for email verification is: {otp}'
-
-#     message = f'Subject: {subject}\n\n{body}'
-
-#     with smtplib.SMTP(smtp_server, smtp_port) as server:
-#         server.starttls()
-#         server.login(sender_email, sender_password)
-#         server.sendmail(sender_email, email, message)
 
 def verify_otp(stored_otp, otp_user):
     # Compare the stored OTP with the OTP provided by the user
@@ -493,29 +477,29 @@ class AddProduct(Resource):
 
         # Validate product data
         if not all([name, description, image_file, price, quantity_available, category]):
-            return {'message': 'Missing product information'}, 400
+            return {'error': 'Missing product information'}, 400
 
         # Convert quantity_available to integer
         try:
             quantity_available = int(quantity_available)
         except ValueError:
-            return {'message': 'Invalid quantity_available, must be an integer'}, 400
+            return {'error': 'Invalid quantity_available, must be an integer'}, 400
 
         # Validate quantity_available
         if quantity_available <= 0:
-            return {'message': 'Quantity available must be greater than 0'}, 400
+            return {'error': 'Quantity available must be greater than 0'}, 400
 
         # Check if file uploaded and is an image
         if image_file.filename == '':
-            return {'message': 'No image selected for upload'}, 400
+            return {'error': 'No image selected for upload'}, 400
         if not allowed_file(image_file.filename):
-            return {'message': 'Invalid file type. Only images are allowed'}, 400
+            return {'error': 'Invalid file type. Only images are allowed'}, 400
 
         # Upload image to Cloudinary
         try:
             image_upload_result = cloudinary.uploader.upload(image_file)
         except Exception as e:
-            return {'message': f'Error uploading image: {str(e)}'}, 500
+            return {'error': f'Error uploading image: {str(e)}'}, 500
 
         # Create a new product
         new_product = Product(
@@ -905,13 +889,8 @@ class ChatMessages(Resource):
             return {'error': 'Not Found', 'message': 'User not found'}, 404
 
        
-        # 
-        # messages = ChatMessage.query.filter(
-        #     ((ChatMessage.sender_id == current_user_id) & (ChatMessage.receiver_id == receiver_user.id)) |
-        #     ((ChatMessage.sender_id == receiver_user.id) & (ChatMessage.receiver_id == current_user_id))
-        # ).order_by(ChatMessage.timestamp.asc()).all()
+        
         messages=ChatMessage.query.filter_by(receiver_id=current_user_id).all()
-        # for message  in messages:
         messages_data = [{
             'id': message.id,
             'sender_id': message.sender_id,

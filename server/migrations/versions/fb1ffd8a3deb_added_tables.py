@@ -1,8 +1,8 @@
-"""added tables and relationships
+"""added tables
 
-Revision ID: 14c28029a4d6
+Revision ID: fb1ffd8a3deb
 Revises: 
-Create Date: 2024-03-03 10:34:00.549237
+Create Date: 2024-03-15 17:19:32.958353
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '14c28029a4d6'
+revision = 'fb1ffd8a3deb'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -24,9 +24,11 @@ def upgrade():
     sa.Column('email', sa.String(), nullable=True),
     sa.Column('_password_hash', sa.String(), nullable=True),
     sa.Column('role', sa.String(), nullable=True),
-    sa.Column('registration_date', sa.Date(), nullable=True),
+    sa.Column('registration_date', sa.DateTime(), nullable=True),
     sa.Column('image', sa.String(), nullable=True),
+    sa.Column('contact', sa.String(), nullable=True),
     sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('contact'),
     sa.UniqueConstraint('email'),
     sa.UniqueConstraint('username')
     )
@@ -44,7 +46,6 @@ def upgrade():
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('farm_name', sa.String(), nullable=True),
     sa.Column('location', sa.String(), nullable=True),
-    sa.Column('contact', sa.String(), nullable=True),
     sa.Column('user_id', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
     sa.PrimaryKeyConstraint('id'),
@@ -67,7 +68,7 @@ def upgrade():
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('customer_id', sa.Integer(), nullable=True),
     sa.Column('product_id', sa.Integer(), nullable=True),
-    sa.Column('order_date', sa.Date(), nullable=True),
+    sa.Column('order_date', sa.DateTime(), nullable=True),
     sa.Column('quantity_ordered', sa.Integer(), nullable=True),
     sa.Column('total_price', sa.Integer(), nullable=True),
     sa.Column('order_status', sa.String(), nullable=True),
