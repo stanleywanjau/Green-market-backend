@@ -31,6 +31,7 @@ class User(db.Model, SerializerMixin):
     role = db.Column(db.String)
     registration_date = db.Column(db.DateTime,default=datetime.utcnow)
     image = db.Column(db.String)
+    contact = db.Column(db.String, unique=True)
     farmer = db.relationship('Farmer', backref='user', uselist=False)
     orders = db.relationship('Order', backref='user')
     reviews = db.relationship('Reviews', backref='user', lazy='dynamic') 
@@ -68,8 +69,7 @@ class Farmer(db.Model, SerializerMixin):
     
     id = db.Column(db.Integer, primary_key=True)
     farm_name = db.Column(db.String,unique=True)
-    location = db.Column(db.String)
-    contact = db.Column(db.String)    
+    location = db.Column(db.String)    
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), unique=True)
     products = db.relationship('Product', backref='farmer')
 
@@ -110,7 +110,7 @@ class Order(db.Model, SerializerMixin):
     id = db.Column(db.Integer, primary_key=True)
     customer_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'))  
-    order_date = db.Column(db.DateTime, default=datetime.utcnow)  # Automatically set the order date
+    order_date = db.Column(db.DateTime, default=datetime.utcnow)  
     quantity_ordered = db.Column(db.Integer)
     total_price = db.Column(db.Integer)  
     order_status = db.Column(db.String)
@@ -137,9 +137,9 @@ class Payment(db.Model, SerializerMixin):
     id = db.Column(db.Integer, primary_key=True)
     order_id = db.Column(db.Integer, db.ForeignKey('order.id'))
     payment_amount = db.Column(db.Integer)  
-    payment_date = db.Column(db.Date)
-    payment_method = db.Column(db.String)
-    status = db.Column(db.String)
+    payment_date = db.Column(db.Date,default=datetime.utcnow)
+    payment_method = db.Column(db.String ,default='mpesa')
+    status = db.Column(db.String,default='In Process')
     transaction_id = db.Column(db.Integer)
     
     

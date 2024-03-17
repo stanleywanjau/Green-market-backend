@@ -45,20 +45,17 @@ def allowed_file(filename):
 
 class Signup(Resource):
     def post(self):
-        username = request.json.get("username")
-        email = request.json.get("email")
-        password = request.json.get("password")
-        image_file = request.files.get("image")  # Change to files
-        role = request.json.get("role")
+        username = request.json.get('username')
+        email = request.json.get('email')
+        password = request.json.get('password')
+        role = request.json.get('role')
+        contact = request.json.get('contact')
 
-        if not (username and email and role):
-            return {"error": "422: Unprocessable Entity"}, 422
-        if role not in ["farmer", "customer"]:
-            return {
-                "error": "422: Unprocessable Entity",
-                "message": "Invalid role value",
-            }, 422
-
+        if not (username and email and role and contact):
+            return {'error': '422: Unprocessable Entity'}, 422
+        if role not in ['farmer', 'customer']:
+            return {'error': '422: Unprocessable Entity', 'message': 'Invalid role value'}, 422
+        
         existing_user_email = User.query.filter_by(email=email).first()
         existing_user_username = User.query.filter_by(username=username).first()
 
@@ -72,9 +69,12 @@ class Signup(Resource):
 
         # Store OTP in the dictionary
         signup_otp_map[email] = otp
+        receiver_email=email
+        subject = 'OTP Verification'
+        body = f'Your OTP for email verification is: {otp}'
 
         # Send OTP via Email
-        send_otp_email(email, otp)
+        send_email(receiver_email, subject, body)
 
         # Validate image file and upload to Cloudinary if provided
         image_url = None
@@ -111,11 +111,14 @@ class Verify(Resource):
         stored_otp = signup_otp_map.get(email)
 
         if stored_otp and verify_otp(stored_otp, otp_user):
-            username = request.json.get("username")
-            password = request.json.get("password")
-            image_url = request.json.get("image_url")  # Change to image_url
-            role = request.json.get("role")
-            new_user = User(username=username, email=email, image=image_url, role=role)
+            username = request.json.get('username')
+            password = request.json.get('password')
+            role = request.json.get('role')
+            contact = request.json.get('contact')
+
+            # Commit the new user to the database with default image URL
+            default_image_url = generate_default_image(username)
+            new_user = User(username=username, email=email, image=default_image_url, role=role,contact=contact)
             new_user.password_hash = password
 
             # Commit the new user to the database
@@ -134,23 +137,7 @@ class Verify(Resource):
             return {"error": "401 Unauthorized", "message": "Invalid OTP"}, 401
 
 
-def send_otp_email(email, otp):
-    # This function sends the OTP via email using SMTP
 
-    smtp_server = "smtp.gmail.com"
-    smtp_port = 587
-    sender_email = "stanley.muiruri@student.moringaschool.com"
-    sender_password = "imei myuf vudn zvah"
-
-    subject = "OTP Verification"
-    body = f"Your OTP for email verification is: {otp}"
-
-    message = f"Subject: {subject}\n\n{body}"
-
-    with smtplib.SMTP(smtp_server, smtp_port) as server:
-        server.starttls()
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, email, message)
 
 
 def verify_otp(stored_otp, otp_user):
@@ -173,6 +160,7 @@ class CheckSession(Resource):
             "email": user.email,
             "role": user.role,
             "image": user.image,
+            "contact":user.contact,
             "sent_messages": [],
             "received_messages": [],
             "orders": [],
@@ -225,7 +213,7 @@ class CheckSession(Resource):
                 "id": user.farmer.id,
                 "farm_name": user.farmer.farm_name,
                 "location": user.farmer.location,
-                "contact": user.farmer.contact,
+                
             }
             user_data["farmer"] = farmer_data
 
@@ -256,10 +244,15 @@ class ForgotPassword(Resource):
         if not user:
             return {"error": "404 Not Found", "message": "User not found"}, 404
 
-        temporary_password = "".join([str(random.randint(0, 9)) for _ in range(8)])
-        reset_otp_map[email] = temporary_password
+        temporary_password = ''.join([str(random.randint(0, 9)) for _ in range(8)])
+        reset_otp_map[email]=temporary_password
+        receiver_email=email
+        subject = 'OTP Verification'
+        body = f'Your OTP for email verification is: {temporary_password}'
 
-        send_otp_email(email, temporary_password)
+        # Send OTP via Email
+        send_email(receiver_email, subject, body)
+       
 
         return {"email": email, "message": f"OTP sent to your email - {email}"}, 200
 
@@ -313,22 +306,21 @@ class FarmerDetails(Resource):
         if user.role != "farmer":
             return {"error": "403 Forbidden", "message": "User is not a farmer"}, 403
 
-        farm_name = request.json.get("farm_name")
-        location = request.json.get("location")
-        contact = request.json.get("contact")
+        
+        farm_name = request.json.get('farm_name')
+        location = request.json.get('location')
+        
 
-        if not (farm_name and location and contact):
-            return {
-                "error": "422 Unprocessable Entity",
-                "message": "Missing farmer details",
-            }, 422
+        if not (farm_name and location ):
+            return {'error': '422 Unprocessable Entity', 'message': 'Missing farmer details'}, 422
 
+        
         if user.farmer:
             user.farmer.farm_name = farm_name
             user.farmer.location = location
-            user.farmer.contact = contact
+            
         else:
-            farmer = Farmer(farm_name=farm_name, location=location, contact=contact)
+            farmer = Farmer(farm_name=farm_name, location=location)
             user.farmer = farmer
 
         db.session.commit()
@@ -489,32 +481,30 @@ class AddProduct(Resource):
         category = data.get("category")
 
         # Validate product data
-        if not all(
-            [name, description, image_file, price, quantity_available, category]
-        ):
-            return {"message": "Missing product information"}, 400
+        if not all([name, description, image_file, price, quantity_available, category]):
+            return {'error': 'Missing product information'}, 400
 
         # Convert quantity_available to integer
         try:
             quantity_available = int(quantity_available)
         except ValueError:
-            return {"message": "Invalid quantity_available, must be an integer"}, 400
+            return {'error': 'Invalid quantity_available, must be an integer'}, 400
 
         # Validate quantity_available
         if quantity_available <= 0:
-            return {"message": "Quantity available must be greater than 0"}, 400
+            return {'error': 'Quantity available must be greater than 0'}, 400
 
         # Check if file uploaded and is an image
-        if image_file.filename == "":
-            return {"message": "No image selected for upload"}, 400
+        if image_file.filename == '':
+            return {'error': 'No image selected for upload'}, 400
         if not allowed_file(image_file.filename):
-            return {"message": "Invalid file type. Only images are allowed"}, 400
+            return {'error': 'Invalid file type. Only images are allowed'}, 400
 
         # Upload image to Cloudinary
         try:
             image_upload_result = cloudinary.uploader.upload(image_file)
         except Exception as e:
-            return {"message": f"Error uploading image: {str(e)}"}, 500
+            return {'error': f'Error uploading image: {str(e)}'}, 500
 
         # Create a new product
         new_product = Product(
@@ -596,9 +586,30 @@ class UpdateProduct(Resource):
         # Commit changes to the database
         db.session.commit()
 
-        return make_response({"message": "Product updated successfully"})
+        return {'message': 'Product updated successfully'}, 200
+    
+    @jwt_required()
+    def get(self,product_id):
+        # Get current farmer's identity
+        current_farmer_id = get_jwt_identity()
 
+        # Check if the current user is a farmer
+        farm_id = Farmer.query.filter_by(user_id=current_farmer_id).first()
+        if not farm_id :
+            return {'message': 'Unauthorized'}, 401
 
+        # Retrieve all products belonging to the current farmer
+        product = Product.query.filter_by(farmer_id=farm_id.id,id=product_id).first()
+        product_data={
+            "id":product.id,
+            "name":product.name,
+            "price":product.price,
+            "quantity_available":product.quantity_available,
+            "image":product.image,
+            "description":product.description
+            
+        }
+        return make_response(jsonify(product_data))
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in {
         "png",
@@ -640,40 +651,36 @@ class FarmerOrders(Resource):
         current_farmer_id = get_jwt_identity()
 
         # Check if the current user is a farmer
-        current_user = User.query.filter_by(id=current_farmer_id).first()
-        if not current_user or current_user.role != "farmer":
-            return {"message": "Unauthorized"}, 401
+        farm = Farmer.query.filter_by(user_id=current_farmer_id).first()
+        if not farm:
+            return {'message': 'Unauthorized'}, 401
 
         # Retrieve orders made by customers for the current farmer's products
-        orders = (
-            Order.query.join(Product)
-            .filter(Product.farmer_id == current_farmer_id)
-            .all()
-        )
+        orders = Order.query.join(Product).filter(Product.farmer_id == farm.id).all()
 
         order_data = []
         for order in orders:
-            order_data.append(
-                {
-                    "customer_id": order.customer_id,
-                    "order_id": order.id,
-                    # 'customer_username': order.role,
-                    "order_date": order.order_date.strftime("%Y-%m-%d"),
-                    "product_id": order.product_id,
-                    "quantity_ordered": order.quantity_ordered,
-                    "total_price": order.total_price,
-                    "order_status": order.order_status,
-                }
-            )
+            customer = User.query.get(order.customer_id)
+            order_data.append({
+                'customer_username': customer.username,
+                'order_id': order.id,
+                'order_date': order.order_date.strftime("%Y-%m-%d"),
+                'product_id': order.product_id,
+                'quantity_ordered': order.quantity_ordered,
+                'total_price': order.total_price,
+                'order_status': order.order_status
+            })
 
         return jsonify(order_data)
-
 
 class UpdateOrder(Resource):
     @jwt_required()
     def put(self, order_id):
         # Get current farmer's identity
         current_farmer_id = get_jwt_identity()
+        farm = Farmer.query.filter_by(user_id=current_farmer_id).first()
+        if not farm:
+            return {'message': 'Unauthorized'}, 401
 
         # Retrieve the order
         order = Order.query.get(order_id)
@@ -681,9 +688,7 @@ class UpdateOrder(Resource):
             return {"message": "Order not found"}, 404
 
         # Check if the order belongs to the current farmer
-        product = Product.query.filter_by(
-            id=order.product_id, farmer_id=current_farmer_id
-        ).all()
+        product = Product.query.filter_by(id=order.product_id, farmer_id=farm.id).first()
         if not product:
             return {"message": "Unauthorized"}, 401
 
@@ -703,10 +708,33 @@ class UpdateOrder(Resource):
 
         # Commit changes to the database
         db.session.commit()
+        customer = User.query.get(order.customer_id)
+        product_name = Product.query.get(order.product_id).name
+        
+        receiver_email=customer.email
+        subject = 'Order updates'
+        body = f'Your order for {product_name} has been {action}. Thank you for shopping with us!'
+        
+        send_email(receiver_email, subject, body)
 
-        return make_response({"message": f"Order {action} successfully"}, 200)
+        return make_response({'message': f'Order {action} successfully'}, 200)
+def send_email(receiver_email, subject, body):
+    smtp_server = 'smtp.gmail.com'
+    smtp_port = 587
+    sender_email = 'stanley.muiruri@student.moringaschool.com'
+    sender_password = 'imei myuf vudn zvah'
+
+    subject = subject
+    body = body
 
 
+    message = f'Subject: {subject}\n\n{body}'
+
+    with smtplib.SMTP(smtp_server, smtp_port) as server:
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, receiver_email, message)
+    
 class Products(Resource):
     def get(self):
         # Retrieve only available products
@@ -714,17 +742,18 @@ class Products(Resource):
 
         product_data = []
         for product in products:
-            product_data.append(
-                {
-                    "id": product.id,
-                    "name": product.name,
-                    "price": product.price,
-                    "image": product.image,
-                    "category": product.category,
-                    "quantity_available": product.quantity_available,
-                    "farmer_id": product.farmer_id,
-                }
-            )
+            farmer =Farmer.query.filter_by(id=product.farmer_id).first()
+            product_data.append({
+                    'id': product.id,
+                    'name': product.name,
+                    'price': product.price,
+                    'image': product.image,
+                    'category': product.category,
+                    'quantity_available': product.quantity_available,
+                    'farmer_id': product.farmer_id,
+                    "location":farmer.location
+                
+                })
 
         return jsonify(product_data)
 
@@ -872,27 +901,18 @@ class ChatMessages(Resource):
         user = User.query.filter_by(id=current_user_id).first()
 
         if not user:
-            return {"error": "Not Found", "message": "User not found"}, 404
+            return {'error': 'Not Found', 'message': 'User not found'}, 404
 
-        #
-        # messages = ChatMessage.query.filter(
-        #     ((ChatMessage.sender_id == current_user_id) & (ChatMessage.receiver_id == receiver_user.id)) |
-        #     ((ChatMessage.sender_id == receiver_user.id) & (ChatMessage.receiver_id == current_user_id))
-        # ).order_by(ChatMessage.timestamp.asc()).all()
-        messages = ChatMessage.query.filter_by(
-            receiver_id=current_user_id, product_id=product_id
-        ).all()
-        # for message  in messages:
-        messages_data = [
-            {
-                "id": message.id,
-                "sender_id": message.sender_id,
-                "receiver_id": message.receiver_id,
-                "message_text": message.message_text,
-                "timestamp": message.timestamp,
-            }
-            for message in messages
-        ]
+       
+        
+        messages=ChatMessage.query.filter_by(receiver_id=current_user_id).all()
+        messages_data = [{
+            'id': message.id,
+            'sender_id': message.sender_id,
+            'receiver_id': message.receiver_id,
+            'message_text': message.message_text,
+            'timestamp': message.timestamp
+        } for message in messages]
 
         return make_response(jsonify(messages_data), 200)
 
@@ -1101,38 +1121,30 @@ class delete_messages(Resource):
         return {"message": "Chat message deleted successfully"}, 200
 
 
-# authetification
-api.add_resource(Signup, "/signup", endpoint="signup")
-api.add_resource(Verify, "/verify")
-api.add_resource(CheckSession, "/checksession")
-api.add_resource(Login, "/login")
-api.add_resource(DeleteAccount, "/delete-account")
-api.add_resource(ForgotPassword, "/forgot-password")
-api.add_resource(ChangePassword, "/change-password")
-# review
-api.add_resource(ReviewsResource, "/reviews")
-api.add_resource(Reviewperproduct, "/review/<int:productid>")
-api.add_resource(ProductReview, "/deleteReview/<int:review_id>")
-# products
-api.add_resource(Products, "/productslist")  # get all products
-api.add_resource(CustomerProducts, "/product/<int:product_id>")  # get product by_id
-api.add_resource(
-    FarmerProducts, "/farmerproducts"
-)  # get all products in my inventory as a farmer
-api.add_resource(AddProduct, "/addproduct")  # add product in inventory
-api.add_resource(
-    DeleteProduct, "/deleteproduct/<int:product_id>"
-)  # delete product from inventory by product_id
-api.add_resource(
-    UpdateProduct, "/updateproduct/<int:product_id>"
-)  # update product in inventory by product_id
-api.add_resource(FarmerOrders, "/farmerorders")  # get all orders placed by customers
-api.add_resource(UpdateOrder, "/updateorder/<int:order_id>")  # update order stat
-api.add_resource(
-    CustomerOrders, "/customerorders"
-)  # get all orders placed as a customers
-api.add_resource(PlaceOrder, "/placeorder")  # place order/add_to_cart
-api.add_resource(DeleteOrder, "/deleteorder/<int:order_id>")  # delete order by order_id
+#authentification
+api.add_resource(Signup, '/signup', endpoint='signup')
+api.add_resource(Verify, '/verify')
+api.add_resource(CheckSession,'/checksession')
+api.add_resource(Login,'/login')
+api.add_resource(DeleteAccount, '/delete-account')
+api.add_resource(ForgotPassword, '/forgot-password')
+api.add_resource(ChangePassword, '/change-password')
+#review
+api.add_resource(ReviewsResource,'/reviews')
+api.add_resource(Reviewperproduct, '/review/<int:productid>')
+api.add_resource(ProductReview,'/deleteReview/<int:review_id>')
+#products
+api.add_resource(Products, '/productslist') #get all products
+api.add_resource(CustomerProducts, '/product/<int:product_id>')# get product by_id
+api.add_resource(FarmerProducts, '/farmerproducts')#get all products in my inventory as a farmer
+api.add_resource(AddProduct, '/addproduct')#add product in inventory
+api.add_resource(DeleteProduct, '/deleteproduct/<int:product_id>') #delete product from inventory by product_id
+api.add_resource(UpdateProduct, '/updateproduct/<int:product_id>')#update product in inventory by product_id
+api.add_resource(FarmerOrders, '/farmerorders')#get all orders placed by customers
+api.add_resource(UpdateOrder, '/updateorder/<int:order_id>')#update order stat
+api.add_resource(CustomerOrders, '/customerorders')#get all orders placed as a customers
+api.add_resource(PlaceOrder, '/placeorder' )# place order/add_to_cart
+api.add_resource(DeleteOrder, '/deleteorder/<int:order_id>')#delete order by order_id
 
 api.add_resource(FarmerDetails, "/farmer-details")
 # chatmessage
