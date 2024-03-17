@@ -879,7 +879,9 @@ class ChatMessages(Resource):
         #     ((ChatMessage.sender_id == current_user_id) & (ChatMessage.receiver_id == receiver_user.id)) |
         #     ((ChatMessage.sender_id == receiver_user.id) & (ChatMessage.receiver_id == current_user_id))
         # ).order_by(ChatMessage.timestamp.asc()).all()
-        messages = ChatMessage.query.filter_by(receiver_id=current_user_id).all()
+        messages = ChatMessage.query.filter_by(
+            receiver_id=current_user_id, product_id=product_id
+        ).all()
         # for message  in messages:
         messages_data = [
             {
@@ -897,74 +899,61 @@ class ChatMessages(Resource):
 
 class ChatSenderMessages(Resource):
     @jwt_required()
-    def post(self, receiver):
-        try:
-            current_user_id = get_jwt_identity()
-        except Exception as e:
-            logging.error(f"Error getting JWT identity: {str(e)}")
-            return {
-                "error": "Unauthorized",
-                "message": "Failed to get JWT identity",
-            }, 401
+    def post(self, product_id):
+        current_user_id = get_jwt_identity()
 
-        user = User.query.filter_by(id=current_user_id).first()
+        # Find the product to ensure it exists
+        product = Product.query.get(product_id)
+        if not product:
+            return {"error": "Product not found"}, 404
 
-        if not user:
-            return {"error": "Not Found", "message": "User not found"}, 404
+        # Assuming each product is linked to exactly one farmer
+        # and each farmer is associated with a user ID
+        if not product.farmer:
+            return {"error": "Farmer not found for this product"}, 404
 
-        receiver_user = User.query.filter_by(id=receiver).first()
-
-        if not receiver_user:
-            return {
-                "error": "Not Found",
-                "message": "Receiver not found or not a farmer",
-            }, 404
+        # The receiver is the user associated with the farmer of the product
+        receiver_id = product.farmer.user_id
 
         message_text = request.json.get("message_text")
-
         if not message_text:
-            return {
-                "error": "Unprocessable Entity",
-                "message": "Content is required for the chat message",
-            }, 422
+            return {"error": "Message text is required"}, 400
 
+        # Create and save the new message
         new_message = ChatMessage(
             sender_id=current_user_id,
-            receiver_id=receiver_user.id,
+            receiver_id=receiver_id,  # User ID of the farmer
+            product_id=product_id,
             message_text=message_text,
         )
         db.session.add(new_message)
         db.session.commit()
 
-        return {"message": "Chat message sent successfully"}, 201
+        return {"message": "Message sent successfully"}, 201
 
     @jwt_required()
-    def get(self, receiver):
+    def get(self, product_id):
         current_user_id = get_jwt_identity()
-        user = db.session.query(User).get(current_user_id)
 
-        if not user:
-            response_data = {"error": "Not Found", "message": "User not found"}
-            return make_response(jsonify(response_data), 404)
+        product = Product.query.get(product_id)
+        if not product:
+            return {"error": "Product not found"}, 404
 
-        receiver_user = db.session.query(User).get(receiver)
+        if not product.farmer or not product.farmer.user_id:
+            return {"error": "Farmer not found for this product"}, 404
 
-        if not receiver_user or receiver_user.role != "customer":
-            response_data = {
-                "error": "Not Found",
-                "message": "Receiver not found or not a customer",
-            }
-            return make_response(jsonify(response_data), 404)
+        farmer_user_id = product.farmer.user_id
 
+        # Retrieve all messages related to the product where the current user is either the sender or the receiver
         messages = (
-            db.session.query(ChatMessage)
+            ChatMessage.query.filter_by(product_id=product_id)
             .filter(
                 (
                     (ChatMessage.sender_id == current_user_id)
-                    & (ChatMessage.receiver_id == receiver_user.id)
+                    & (ChatMessage.receiver_id == farmer_user_id)
                 )
                 | (
-                    (ChatMessage.sender_id == receiver_user.id)
+                    (ChatMessage.sender_id == farmer_user_id)
                     & (ChatMessage.receiver_id == current_user_id)
                 )
             )
@@ -972,18 +961,116 @@ class ChatSenderMessages(Resource):
             .all()
         )
 
+        if not messages:
+            return {
+                "message": "No messages found for this product between you and the farmer"
+            }, 404
+
         messages_data = [
             {
                 "id": message.id,
                 "sender_id": message.sender_id,
                 "receiver_id": message.receiver_id,
                 "message_text": message.message_text,
-                "timestamp": message.timestamp,
+                "timestamp": message.timestamp.isoformat(),
             }
             for message in messages
         ]
 
         return make_response(jsonify(messages_data), 200)
+
+# class ChatSenderMessages(Resource):
+#     @jwt_required()
+#     def post(self, receiver, product_id):
+#         try:
+#             current_user_id = get_jwt_identity()
+#         except Exception as e:
+#             logging.error(f"Error getting JWT identity: {str(e)}")
+#             return {
+#                 "error": "Unauthorized",
+#                 "message": "Failed to get JWT identity",
+#             }, 401
+
+#         user = User.query.filter_by(id=current_user_id).first()
+
+#         if not user:
+#             return {"error": "Not Found", "message": "User not found"}, 404
+
+#         receiver_user = User.query.filter_by(id=receiver).first()
+
+#         if not receiver_user:
+#             return {
+#                 "error": "Not Found",
+#                 "message": "Receiver not found or not a farmer",
+#             }, 404
+
+#         message_text = request.json.get("message_text")
+
+#         if not message_text:
+#             return {
+#                 "error": "Unprocessable Entity",
+#                 "message": "Content is required for the chat message",
+#             }, 422
+
+#         new_message = ChatMessage(
+#             sender_id=current_user_id,
+#             receiver_id=receiver_user.id,
+#             product_id=product_id,
+#             message_text=message_text,
+#         )
+#         db.session.add(new_message)
+#         db.session.commit()
+
+#         return {"message": "Chat message sent successfully"}, 201
+
+#     @jwt_required()
+#     def get(self, receiver, product_id):
+#         current_user_id = get_jwt_identity()
+#         user = db.session.query(User).get(current_user_id)
+
+#         if not user:
+#             response_data = {"error": "Not Found", "message": "User not found"}
+#             return make_response(jsonify(response_data), 404)
+
+#         receiver_user = db.session.query(User).get(receiver)
+
+#         if not receiver_user or receiver_user.role != "customer":
+#             response_data = {
+#                 "error": "Not Found",
+#                 "message": "Receiver not found or not a customer",
+#             }
+#             return make_response(jsonify(response_data), 404)
+
+#         messages = (
+#             db.session.query(ChatMessage)
+#             .filter(
+#                 (
+#                     (ChatMessage.sender_id == current_user_id)
+#                     & (ChatMessage.receiver_id == receiver_user.id)
+#                     & (ChatMessage.product_id == product_id)
+#                 )
+#                 | (
+#                     (ChatMessage.sender_id == receiver_user.id)
+#                     & (ChatMessage.receiver_id == current_user_id)
+#                     & (ChatMessage.product_id == product_id)
+#                 )
+#             )
+#             .order_by(ChatMessage.timestamp.asc())
+#             .all()
+#         )
+
+#         messages_data = [
+#             {
+#                 "id": message.id,
+#                 "sender_id": message.sender_id,
+#                 "receiver_id": message.receiver_id,
+#                 "message_text": message.message_text,
+#                 "timestamp": message.timestamp,
+#             }
+#             for message in messages
+#         ]
+
+#         return make_response(jsonify(messages_data), 200)
 
 
 class delete_messages(Resource):
@@ -1050,7 +1137,7 @@ api.add_resource(DeleteOrder, "/deleteorder/<int:order_id>")  # delete order by 
 api.add_resource(FarmerDetails, "/farmer-details")
 # chatmessage
 api.add_resource(ChatMessages, "/chatmessages")
-api.add_resource(ChatSenderMessages, "/chatsendermessages/<int:receiver>")
+api.add_resource(ChatSenderMessages, "/chatsendermessages/<int:product_id>")
 api.add_resource(delete_messages, "/deletemessage/<int:message_id>")
 
 
@@ -1106,5 +1193,165 @@ class RatingCounts(Resource):
 
 api.add_resource(RatingCounts, "/<int:product_id>/rating-counts")
 
-if __name__== "__main__":
+
+# @app.route("/api/products-users", methods=["GET"])
+# @jwt_required()
+# def get_products_with_users():
+#     current_user_id = get_jwt_identity()
+#     products = (
+#         db.session.query(
+#             Product.id, Product.name, ChatMessage.sender_id, ChatMessage.receiver_id
+#         )
+#         .join(ChatMessage, Product.id == ChatMessage.product_id)
+#         .filter(
+#             (ChatMessage.sender_id == current_user_id)
+#             | (ChatMessage.receiver_id == current_user_id)
+#         )
+#         .distinct(Product.id, ChatMessage.sender_id, ChatMessage.receiver_id)
+#         .all()
+#     )
+
+#     # Organizing data
+#     products_users = {}
+#     for product_id, product_name, sender_id, receiver_id in products:
+#         if product_id not in products_users:
+#             products_users[product_id] = {"name": product_name, "users": set()}
+
+#         products_users[product_id]["users"].add(sender_id)
+#         products_users[product_id]["users"].add(receiver_id)
+
+#     # Removing current user id from users and preparing final structure
+#     final_structure = []
+#     for product_id, data in products_users.items():
+#         users = list(data["users"] - {current_user_id})
+#         user_details = User.query.filter(User.id.in_(users)).all()  # Fetch user details
+#         final_structure.append(
+#             {
+#                 "productId": product_id,
+#                 "productName": data["name"],
+#                 "users": [
+#                     {"id": user.id, "username": user.username} for user in user_details
+#                 ],
+#             }
+#         )
+
+#     return jsonify(final_structure)
+
+
+# @app.route("/api/messages/<int:product_id>/<int:other_user_id>", methods=["GET"])
+# @jwt_required()
+# def get_messages_for_user_and_product(product_id, other_user_id):
+#     current_user_id = get_jwt_identity()
+
+#     messages = (
+#         ChatMessage.query.filter(
+#             ChatMessage.product_id == product_id,
+#             (
+#                 (ChatMessage.sender_id == current_user_id)
+#                 & (ChatMessage.receiver_id == other_user_id)
+#             )
+#             | (
+#                 (ChatMessage.sender_id == other_user_id)
+#                 & (ChatMessage.receiver_id == current_user_id)
+#             ),
+#         )
+#         .order_by(ChatMessage.timestamp.asc())
+#         .all()
+#     )
+
+#     messages_data = [
+#         {
+#             "id": message.id,
+#             "senderId": message.sender_id,
+#             "receiverId": message.receiver_id,
+#             "messageText": message.message_text,
+#             "timestamp": message.timestamp,
+#         }
+#         for message in messages
+#     ]
+
+#     return jsonify(messages_data)
+
+
+@app.route("/api/products-users", methods=["GET"])
+@jwt_required()
+def get_products_with_users():
+    current_user_id = get_jwt_identity()
+    products = (
+        db.session.query(
+            Product.id, Product.name, ChatMessage.sender_id, ChatMessage.receiver_id
+        )
+        .join(ChatMessage, Product.id == ChatMessage.product_id)
+        .filter(
+            (ChatMessage.sender_id == current_user_id)
+            | (ChatMessage.receiver_id == current_user_id)
+        )
+        .distinct(Product.id, ChatMessage.sender_id, ChatMessage.receiver_id)
+        .all()
+    )
+
+    user_ids = set()
+    products_users = {}
+    for product_id, product_name, sender_id, receiver_id in products:
+        products_users.setdefault(product_id, {"name": product_name, "users": set()})
+        products_users[product_id]["users"].update([sender_id, receiver_id])
+        user_ids.update([sender_id, receiver_id])
+
+    # Fetch user details in one query
+    user_details = {
+        user.id: user for user in User.query.filter(User.id.in_(user_ids)).all()
+    }
+
+    final_structure = [
+        {
+            "productId": product_id,
+            "productName": data["name"],
+            "users": [
+                {"id": uid, "username": user_details[uid].username}
+                for uid in data["users"]
+                if uid != current_user_id
+            ],
+        }
+        for product_id, data in products_users.items()
+    ]
+
+    return jsonify(final_structure)
+
+
+@app.route("/api/messages/<int:product_id>/<int:other_user_id>", methods=["GET"])
+@jwt_required()
+def get_messages_for_user_and_product(product_id, other_user_id):
+    current_user_id = get_jwt_identity()
+
+    messages = (
+        ChatMessage.query.filter(
+            ChatMessage.product_id == product_id,
+            (
+                (ChatMessage.sender_id == current_user_id)
+                & (ChatMessage.receiver_id == other_user_id)
+            )
+            | (
+                (ChatMessage.sender_id == other_user_id)
+                & (ChatMessage.receiver_id == current_user_id)
+            ),
+        )
+        .order_by(ChatMessage.timestamp.asc())
+        .all()
+    )
+
+    messages_data = [
+        {
+            "id": message.id,
+            "senderId": message.sender_id,
+            "receiverId": message.receiver_id,
+            "messageText": message.message_text,
+            "timestamp": message.timestamp.isoformat(),
+        }
+        for message in messages
+    ]
+
+    return jsonify(messages_data)
+
+
+if __name__ == "_main_":
     app.run(port=5555, debug=True)
