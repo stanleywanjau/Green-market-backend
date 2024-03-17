@@ -85,10 +85,6 @@ def seed_data():
                            user5, farmer1, farmer2, farmer3])
         db.session.commit()
 
-        review1 = Reviews(customer_id=user1.id, product_id=1, rating=4,
-                          comments="Great product!", review_date=datetime.now())
-        db.session.add(review1)
-        db.session.commit()
 
         product1 = Product(name="Apple", price=50, description="Fresh apples", quantity_available=100,
                            category="Fruit", image="https://i.pinimg.com/236x/41/6a/67/416a671f74edf7f2357e3cad537635b5.jpg")
@@ -172,6 +168,10 @@ def seed_data():
                                product16, product17, product18, product19, product20])
         db.session.commit()
 
+        review1 = Reviews(customer_id=user1.id, product_id=1, rating=4,
+                          comments="Great product!", review_date=datetime.now())
+        db.session.add(review1)
+        db.session.commit()
         # Create order1 and associate it with product1
         order1 = Order(customer_id=user1.id, order_date=datetime.now(
         ), quantity_ordered=5, total_price=10, order_status="completed", product_id=product1.id)
