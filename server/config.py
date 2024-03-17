@@ -19,6 +19,6 @@ jwt = JWTManager(app)
 
 migrate=Migrate(app,db)
 db.init_app(app)
-
+CORS(app)
 bcrypt=Bcrypt(app)
 api = Api(app)
