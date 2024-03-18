@@ -11,15 +11,14 @@ from .models import User,Farmer,Reviews,Order,Product,ChatMessage
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
-<<<<<<< HEAD
 import requests
 from requests.auth import HTTPBasicAuth
 import base64
 import json
 
-=======
+
 from sqlalchemy import func
->>>>>>> 4ffe023e79bd0407672d32e563d66f310174f6aa
+
 
 # Initialize Flask app
 # app = Flask(__name__)
