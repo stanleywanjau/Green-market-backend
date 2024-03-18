@@ -11,6 +11,7 @@ from models import User,Farmer,Reviews,Order,Product,ChatMessage
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
+from sqlalchemy import func
 
 # Initialize Flask app
 # app = Flask(__name__)
@@ -888,13 +889,13 @@ class ChatMessages(Resource):
         if not user:
             return {'error': 'Not Found', 'message': 'User not found'}, 404
 
-       
-        
-        messages=ChatMessage.query.filter_by(receiver_id=current_user_id).all()
+        messages = ChatMessage.query.filter_by(receiver_id=current_user_id).all()
         messages_data = [{
             'id': message.id,
             'sender_id': message.sender_id,
+            'sender_name': User.query.filter_by(id=message.sender_id).first().username,
             'receiver_id': message.receiver_id,
+            'receiver_name': user.username, 
             'message_text': message.message_text,
             'timestamp': message.timestamp
         } for message in messages]
@@ -934,8 +935,9 @@ class ChatSenderMessages(Resource):
         
 
 
+class SenderMessages(Resource):
     @jwt_required()
-    def get(self, receiver):
+    def get(self):
         current_user_id = get_jwt_identity()
         user = db.session.query(User).get(current_user_id)
 
@@ -943,28 +945,22 @@ class ChatSenderMessages(Resource):
             response_data = {'error': 'Not Found', 'message': 'User not found'}
             return make_response(jsonify(response_data), 404)
 
-        receiver_user = db.session.query(User).get(receiver)
-
-        if not receiver_user or receiver_user.role != 'customer':
-            response_data = {'error': 'Not Found', 'message': 'Receiver not found or not a customer'}
-            return make_response(jsonify(response_data), 404)
-
-        messages = db.session.query(ChatMessage).filter(
-            ((ChatMessage.sender_id == current_user_id) & (ChatMessage.receiver_id == receiver_user.id)) |
-            ((ChatMessage.sender_id == receiver_user.id) & (ChatMessage.receiver_id == current_user_id))
-        ).order_by(ChatMessage.timestamp.asc()).all()
+        messages = db.session.query(ChatMessage).filter_by(sender_id=current_user_id).order_by(ChatMessage.timestamp.asc()).all()
 
         messages_data = [
             {
                 'id': message.id,
                 'sender_id': message.sender_id,
+                'sender_name': user.username,
                 'receiver_id': message.receiver_id,
+                'receiver_name': User.query.filter_by(id=message.receiver_id).first().username,
                 'message_text': message.message_text,
                 'timestamp': message.timestamp
             } for message in messages
         ]
 
         return make_response(jsonify(messages_data), 200)
+
 
 
  
@@ -992,6 +988,61 @@ class delete_messages(Resource):
         db.session.commit()
 
         return {'message': 'Chat message deleted successfully'}, 200
+
+# Tracy, new routes
+class ReviewStats(Resource):
+    def get(self, product_id):
+        average_rating = (
+            db.session.query(func.avg(Reviews.rating))
+            .filter(Reviews.product_id == product_id)
+            .scalar()
+        )
+        total_reviews = (
+            db.session.query(func.count(Reviews.id))
+            .filter(Reviews.product_id == product_id)
+            .scalar()
+        )
+
+        return {
+            "averageRating": float(average_rating) if average_rating else 0,
+            "totalReviews": total_reviews,
+        }
+
+class RatingCounts(Resource):
+    def get(self, product_id):
+        rating_counts = (
+            db.session.query(Reviews.rating, db.func.count(Reviews.rating))
+            .filter(Reviews.product_id == product_id)
+            .group_by(Reviews.rating)
+            .all()
+        )
+
+        counts_dict = {rating: count for rating, count in rating_counts}
+        return jsonify(counts_dict)
+
+class CheckPurchase(Resource):
+    @jwt_required()
+    def get(self, product_id):
+        current_user_id = get_jwt_identity()
+
+        has_purchased = bool(
+            Order.query.filter_by(
+                customer_id=current_user_id, product_id=product_id, order_status="completed"
+            ).first()
+        )
+
+        return jsonify({"hasPurchased": has_purchased})
+
+
+        
+
+
+
+# Adding resources to the API
+api.add_resource(ReviewStats, "/reviewstats/<int:product_id>")
+api.add_resource(RatingCounts, "/<int:product_id>/rating-counts")
+api.add_resource(CheckPurchase, "/api/orders/check-purchase/<int:product_id>")
+
 
 
 #authentification
@@ -1022,6 +1073,7 @@ api.add_resource(DeleteOrder, '/deleteorder/<int:order_id>')#delete order by ord
 api.add_resource(FarmerDetails, '/farmer-details')
 #chatmessage
 api.add_resource(ChatMessages,'/chatmessages')
+api.add_resource(SenderMessages, "/chatsendermessages")
 api.add_resource(ChatSenderMessages, "/chatsendermessages/<int:receiver>")
 api.add_resource(delete_messages,'/deletemessage/<int:message_id>')
 
