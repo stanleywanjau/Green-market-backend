@@ -85,7 +85,7 @@ def seed_data():
                            user5, farmer1, farmer2, farmer3])
         db.session.commit()
 
-<<<<<<< HEAD
+
         review1 = Reviews(
             customer_id=1,
             product_id=2,
@@ -220,8 +220,7 @@ def seed_data():
         db.session.add(review14)
         db.session.add(review15)
         db.session.commit()
-=======
->>>>>>> 1f9569171c9310f4a5996ad7a22ffebe91c88f71
+
 
         product1 = Product(name="Apple", price=50, description="Fresh apples", quantity_available=100,
                            category="Fruit", image="https://i.pinimg.com/236x/41/6a/67/416a671f74edf7f2357e3cad537635b5.jpg")
