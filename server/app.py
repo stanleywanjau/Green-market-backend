@@ -6,8 +6,8 @@ from datetime import datetime
 import smtplib
 import logging
 import os
-from config import db, api, app
-from models import User,Farmer,Reviews,Order,Product,ChatMessage
+from .config import db, api, app
+from .models import User,Farmer,Reviews,Order,Product,ChatMessage
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
@@ -396,7 +396,7 @@ class Reviewperproduct(Resource):
         for review in reviews:
             review_data.append({
                 "id":review.id,
-                "name":review.rating,
+                "rating":review.rating,
                 "comments":review.comments,
                 "review_date":review.review_date
             })
@@ -884,7 +884,7 @@ class ChatMessages(Resource):
     @jwt_required()
     def get(self):
         current_user_id = get_jwt_identity()
-        user = User.query.filter_by(id=current_user_id).first()
+        user = db.session.query(User).get(current_user_id)
 
         if not user:
             return {'error': 'Not Found', 'message': 'User not found'}, 404
@@ -912,15 +912,21 @@ class ChatSenderMessages(Resource):
             logging.error(f"Error getting JWT identity: {str(e)}")
             return {'error': 'Unauthorized', 'message': 'Failed to get JWT identity'}, 401
 
-        user = User.query.filter_by(id=current_user_id).first()
+        user = db.session.query(User).get(current_user_id)
 
         if not user:
             return {'error': 'Not Found', 'message': 'User not found'}, 404
 
-        receiver_user = User.query.filter_by(id=receiver).first()
+        farm = Farmer.query.filter_by(id=receiver).first()
 
-        if not receiver_user:
+        if not farm:
             return {'error': 'Not Found', 'message': 'Receiver not found or not a farmer'}, 404
+        
+        receiver_user=User.query.filter_by(id=farm.user_id).first()
+        
+        
+        
+        
 
         message_text = request.json.get('message_text')
 
