@@ -6,8 +6,8 @@ from datetime import datetime
 import smtplib
 import logging
 import os
-from .config import db, api, app
-from .models import User,Farmer,Reviews,Order,Product,ChatMessage
+from config import db, api, app
+from models import User,Farmer,Reviews,Order,Product,ChatMessage
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
