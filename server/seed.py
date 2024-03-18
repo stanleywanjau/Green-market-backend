@@ -85,6 +85,143 @@ def seed_data():
                            user5, farmer1, farmer2, farmer3])
         db.session.commit()
 
+<<<<<<< HEAD
+        review1 = Reviews(
+            customer_id=1,
+            product_id=2,
+            rating=4,
+            comments="Great product! Would buy again.",
+            review_date=datetime(2023, 12, 6),
+        )
+
+        review2 = Reviews(
+            customer_id=2,
+            product_id=1,
+            rating=3,
+            comments="Decent, but could be improved.",
+            review_date=datetime(2023, 12, 3),
+        )
+
+        review3 = Reviews(
+            customer_id=3,
+            product_id=4,
+            rating=5,
+            comments="Absolutely love it!",
+            review_date=datetime(2023, 11, 30),
+        )
+
+        review4 = Reviews(
+            customer_id=4,
+            product_id=3,
+            rating=2,
+            comments="Not what I expected. Disappointing.",
+            review_date=datetime(2023, 12, 8),
+        )
+
+        review5 = Reviews(
+            customer_id=5,
+            product_id=1,
+            rating=4,
+            comments="Good quality for the price.",
+            review_date=datetime(2023, 12, 5),
+        )
+        review6 = Reviews(
+            customer_id=1,  # User 1 reviews a new product
+            product_id=3,
+            rating=2,
+            comments="Not as good as their other products.",
+            review_date=datetime(2023, 12, 2),
+        )
+
+        review7 = Reviews(
+            customer_id=2,
+            product_id=4,
+            rating=5,
+            comments="Amazing, will definitely buy again.",
+            review_date=datetime(2023, 12, 9),
+        )
+
+        review8 = Reviews(
+            customer_id=3,
+            product_id=1,
+            rating=3,
+            comments="Does the job.",
+            review_date=datetime(2023, 11, 28),
+        )
+
+        review9 = Reviews(
+            customer_id=4,
+            product_id=2,
+            rating=4,
+            comments="Impressed with the quality.",
+            review_date=datetime(2023, 12, 6),
+        )
+
+        review10 = Reviews(
+            customer_id=5,
+            product_id=3,
+            rating=1,
+            comments="Very poor experience.",
+            review_date=datetime(2023, 12, 10),
+        )
+        review11 = Reviews(
+            customer_id=1,  # User 1 needs one more review
+            product_id=2,  # The only product available
+            rating=3,
+            comments="It's alright.",
+            review_date=datetime(2023, 12, 9),
+        )
+
+        review12 = Reviews(
+            customer_id=2,
+            product_id=2,  # User 2 needs one more review
+            rating=4,
+            comments="Great value for the price.",
+            review_date=datetime(2023, 12, 3),
+        )
+
+        review13 = Reviews(
+            customer_id=3,
+            product_id=2,  # User 3 needs one more review
+            rating=5,
+            comments="Exceeded my expectations!",
+            review_date=datetime(2023, 12, 5),
+        )
+
+        review14 = Reviews(
+            customer_id=4,
+            product_id=2,  # User 4 needs one more review
+            rating=2,
+            comments="Not a fan. Wouldn't purchase again.",
+            review_date=datetime(2023, 12, 1),
+        )
+
+        review15 = Reviews(
+            customer_id=5,
+            product_id=2,  # User 5 needs one more review
+            rating=3,
+            comments="It does the job, but nothing special.",
+            review_date=datetime(2023, 12, 6),
+        )
+
+        db.session.add(review1)
+        db.session.add(review2)
+        db.session.add(review3)
+        db.session.add(review4)
+        db.session.add(review5)
+        db.session.add(review6)
+        db.session.add(review7)
+        db.session.add(review8)
+        db.session.add(review9)
+        db.session.add(review10)
+        db.session.add(review11)
+        db.session.add(review12)
+        db.session.add(review13)
+        db.session.add(review14)
+        db.session.add(review15)
+        db.session.commit()
+=======
+>>>>>>> 1f9569171c9310f4a5996ad7a22ffebe91c88f71
 
         product1 = Product(name="Apple", price=50, description="Fresh apples", quantity_available=100,
                            category="Fruit", image="https://i.pinimg.com/236x/41/6a/67/416a671f74edf7f2357e3cad537635b5.jpg")
