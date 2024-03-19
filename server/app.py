@@ -8,12 +8,39 @@ from datetime import datetime
 import smtplib
 import logging
 import os
+
+from sqlalchemy import Transaction
 from config import db, api, app
 from models import Payment, User,Farmer,Reviews,Order,Product,ChatMessage
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
 import requests
+
+
+class Transactions(Resource):
+    @jwt_required()
+    def get(self):
+        # Assuming Payment is a SQLAlchemy model
+        transactions = Payment.query.all()
+        transactions_data = [
+            {
+                "id": transaction.id,
+                "order_id": transaction.order_id,
+                "payment_amount": transaction.payment_amount,
+                "payment_date": (
+                    transaction.payment_date.strftime("%Y-%m-%d %H:%M:%S")
+                    if transaction.payment_date
+                    else None
+                ),
+                "payment_method": transaction.payment_method,
+                "status": transaction.status,
+                "transaction_id": transaction.transaction_id,
+            }
+            for transaction in transactions
+        ]
+        return jsonify(transactions_data), 200
+
 
 
 
@@ -1078,7 +1105,7 @@ class TriggerPayment(Resource):
             return jsonify({"success": True, "response": response_data.decode("utf-8")}), 200
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
-        
+
 class MyCallback(Resource):
     @jwt_required()
     def post(self, order_id):
@@ -1113,10 +1140,44 @@ class MyCallback(Resource):
                 status="Completed",
                 transaction_id=mpesa_receipt_number,
             )
-            db.session.add(new_payment)
-            db.session.commit()
+            DbfilenameShelf.session.add(new_payment)
+            dbm.session.commit()
         except Exception as e:
-           
+            # Handle any errors that might occur during the process
+            return jsonify({"status": "error", "message": str(e)}), 400
+
+        # Return a success response upon successful processing
+        return (
+            jsonify({"status": "success", "message": "Payment processed successfully"}),
+            200,
+        )
+
+class Transactions(Resource):
+    @jwt_required()
+    def get(self):
+        # Assuming Payment is a SQLAlchemy model
+        transactions = Payment.query.all()
+        transactions_data = [
+            {
+                "id": transaction.id,
+                "order_id": transaction.order_id,
+                "payment_amount": transaction.payment_amount,
+                "payment_date": (
+                    transaction.payment_date.strftime("%Y-%m-%d %H:%M:%S")
+                    if transaction.payment_date
+                    else None
+                ),
+                "payment_method": transaction.payment_method,
+                "status": transaction.status,
+                "transaction_id": transaction.transaction_id,
+            }
+            for transaction in transactions
+        ]
+        return jsonify(transactions_data), 200
+
+
+
+
 
 
 # Adding resources to the API
@@ -1162,6 +1223,10 @@ api.add_resource(ImageDelete, '/deleteimage')
 
 #payment
 api.add_resource(TriggerPayment, "/trigger-payment")
+api.add_resource(MyCallback, "/mycallback/<int:order_id>")
+api.add_resource(Transaction, "/transactions")
+
+
 
 
 if __name__ == "__main__":
