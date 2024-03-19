@@ -1,3 +1,5 @@
+import dbm
+from shelve import DbfilenameShelf
 from flask import  Flask, jsonify, request, make_response
 from flask_restful import Api, Resource
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
@@ -12,6 +14,7 @@ import cloudinary
 import cloudinary.uploader
 import cloudinary.api
 import requests
+
 
 
 
@@ -1075,6 +1078,45 @@ class TriggerPayment(Resource):
             return jsonify({"success": True, "response": response_data.decode("utf-8")}), 200
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
+        
+class MyCallback(Resource):
+    @jwt_required()
+    def post(self, order_id):
+        # Parse the JSON data from the POST request
+        data = request.get_json()
+
+        try:
+            items = data["Body"]["stkCallback"]["CallbackMetadata"]["Item"]
+            extracted_data = {
+                item["Name"]: item.get("Value", None) for item in items
+            }  # Safely extract data
+
+            # Extract relevant information
+            mpesa_receipt_number = extracted_data.get("MpesaReceiptNumber")
+            payment_amount = extracted_data.get("Amount")
+            transaction_date = extracted_data.get("TransactionDate")
+
+            # Convert transaction_date to datetime, keeping the time part
+            payment_date = (
+                datetime.strptime(str(transaction_date), "%Y%m%d%H%M%S")
+                if transaction_date
+                else None
+            )
+
+            # Use the provided order_id directly
+            # Assuming Payment is a SQLAlchemy model
+            new_payment = Payment(
+                order_id=order_id,
+                payment_amount=payment_amount,
+                payment_date=payment_date,
+                payment_method="M-Pesa",
+                status="Completed",
+                transaction_id=mpesa_receipt_number,
+            )
+            db.session.add(new_payment)
+            db.session.commit()
+        except Exception as e:
+           
 
 
 # Adding resources to the API
