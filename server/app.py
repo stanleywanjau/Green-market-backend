@@ -7,19 +7,16 @@ import smtplib
 import logging
 import os
 from config import db, api, app
-from models import User,Farmer,Reviews,Order,Product,ChatMessage
+from models import Payment, User,Farmer,Reviews,Order,Product,ChatMessage
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
-<<<<<<< HEAD
 import requests
 from requests.auth import HTTPBasicAuth
 import base64
 import json
-
-=======
 from sqlalchemy import func
->>>>>>> 4ffe023e79bd0407672d32e563d66f310174f6aa
+
 
 # Initialize Flask app
 # app = Flask(__name__)
@@ -1041,125 +1038,52 @@ class CheckPurchase(Resource):
 
         return jsonify({"hasPurchased": has_purchased})
 
+class TriggerPayment(Resource):
+    @jwt_required()
+    def post(self):
+        # Extract data from the incoming JSON payload
+        data = request.get_json()
+        order_id = data.get("order_id")
+        phone_number = data.get("phone_number")  # Extract phone number from the request
 
-        
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer lJ0G0H1EASGqvHvRhQHA4VjZEIyMlJ ",
+        }
 
+        # Use an f-string to dynamically insert the order_id into the CallBackURL
+        callBackURL = f"https://mpesacallback.onrender.com/mycallback/{order_id}"
+
+        payload = {
+            "BusinessShortCode": 174379,
+            "Password": "lJ0G0H1EASGqvHvRhQHA4VjZEIyMlJMTc0Mzc5YmZiMjc5ZjlhYTliZGJjZjE1OGU5N2RkNzFhNDY3Y2QyZTBjODkzMDU5YjEwZjc4ZTZiNzJhZGExZWQyYzkxOTIwMjQwMzE5MTgxMjUy",
+            "Timestamp": "20240318181252",
+            "TransactionType": "CustomerPayBillOnline",
+            "Amount": 1,
+            "PartyA": 254725929654,  # Use the extracted phone number here
+            "PartyB": 174379,
+            "PhoneNumber": 254725929654,  # And also here
+            "CallBackURL": callBackURL,
+            "AccountReference": "CompanyXLTD",
+            "TransactionDesc": "Payment of X",
+        }
+
+        try:
+            response = requests.post(
+                "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
+                headers=headers,
+                json=payload,
+            )
+            response_data = response.text.encode("utf8")
+            return jsonify({"success": True, "response": response_data.decode("utf-8")}), 200
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
 
 
 # Adding resources to the API
 api.add_resource(ReviewStats, "/reviewstats/<int:product_id>")
 api.add_resource(RatingCounts, "/<int:product_id>/rating-counts")
 api.add_resource(CheckPurchase, "/api/orders/check-purchase/<int:product_id>")
-
-
-
-# get Oauth token from M-pesa [function]
-def get_mpesa_token():
-
-    consumer_key = "ZfRDApODSYU6xetwEASd6sgLbfpm3pAPMCrO3L6lZnznrjJV"
-    consumer_secret = "lQesMuvEQ6CdbGWHovvfcpa9PEgvFkunWGfssP9k3XT1ATpcQyfJDguQvLLnoIgC"
-    api_URL = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
-
-    # make a get request using python requests liblary
-    r = requests.get(api_URL, auth=HTTPBasicAuth(consumer_key, consumer_secret))
-
-    # return access_token from response
-    return r.json()['access_token']
-
-
-# initialize a flask app
-app = Flask(Mpesa-app)
-
-# intialize a flask-restful api
-api = Api(app)
-
-class MakeSTKPush(Resource):
-
-    # get 'phone' and 'amount' from request body
-    parser = reqparse.RequestParser()
-    parser.add_argument('phone',
-            type=str,
-            required=True,
-            help="This fied is required")
-
-    parser.add_argument('amount',
-            type=str,
-            required=True,
-            help="this fied is required")
-
-    # make stkPush method
-    def post(self):
-
-        """ make and stk push to daraja API"""
-
-        encode_data = b"<Business_shortcode><online_passkey><current timestamp>" 
-
-        # encode business_shortcode, online_passkey and current_time (yyyyMMhhmmss) to base64
-        passkey  = base64.b64encode(encode_data)
-
-        # make stk push
-        try:
-
-            # get access_token
-            access_token = get_mpesa_token()
-
-            # stk_push request url
-            api_url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
-
-            # put access_token in request headers
-            headers = { "Authorization": f"Bearer {access_token}" ,"Content-Type": "application/json" }
-
-            # get phone and amount
-            data = MakeSTKPush.parser.parse_args()
-
-            # define request body
-            request = {
-                "BusinessShortCode": "<business_shortCode>",
-                "Password": str(passkey)[2:-1],
-                "Timestamp": "<timeStamp>", # timestamp format: 20190317202903 yyyyMMhhmmss 
-                "TransactionType": "CustomerPayBillOnline",
-                "Amount": data['amount'],
-                "PartyA": data['phone'],
-                "PartyB": "<business_shortCode>",
-                "PhoneNumber": data['phone'],
-                "CallBackURL": "<YOUR_CALLBACK_URL>",
-                "AccountReference": "UNIQUE_REFERENCE",
-                "TransactionDesc": ""
-            }
-
-            # make request and catch response
-            response = requests.post(api_url,json=request,headers=headers)
-
-            # check response code for errors and return response
-            if response.status_code > 299:
-                return{
-                    "success": False,
-                    "message":"Sorry, something went wrong please try again later."
-                },400
-
-            # CheckoutRequestID = response.text['CheckoutRequestID']
-
-            # Do something in your database e.g store the transaction or as an order
-            # make sure to store the CheckoutRequestID to identify the tranaction in 
-            # your CallBackURL endpoint.
-
-            # return a respone to your user
-            return {
-                "data": json.loads(response.text)
-            },200
-
-        except:
-            # catch error and return respones
-
-            return {
-                "success":False,
-                "message":"Sorry something went wrong please try again."
-            },400
-
-
-
-
-
 
 #authentification
 api.add_resource(Signup, '/signup', endpoint='signup')
@@ -1197,8 +1121,8 @@ api.add_resource(ImageUpload, '/uploadimage')
 api.add_resource(ImageUpdate, '/updateimage')
 api.add_resource(ImageDelete, '/deleteimage')
 
-# stk push path [POST request to {baseURL}/stkpush]
-api.add_resource(MakeSTKPush,"/stkpush")
+#payment
+api.add_resource(TriggerPayment, "/trigger-payment")
 
 
 if __name__ == "__main__":
