@@ -11,8 +11,8 @@ from .models import User,Farmer,Reviews,Order,Product,ChatMessage
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
-import requests
-from requests.auth import HTTPBasicAuth
+# import requests
+# from requests.auth import HTTPBasicAuth
 import base64
 import json
 
@@ -790,7 +790,7 @@ class CustomerOrders(Resource):
             order_data.append({
                 'order_id': order.id,
                 'order_date': order.order_date.strftime("%Y-%m-%d"),
-                # 'products': [product.serialize() for product in order.products],  # Include associated products
+                'product_name':Product.query.filter_by(id=order.product_id).first().name,
                 'total_price': order.total_price,
                 'order_status': order.order_status
             })
@@ -1066,14 +1066,14 @@ def get_mpesa_token():
     api_URL = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
 
     # make a get request using python requests liblary
-    r = requests.get(api_URL, auth=HTTPBasicAuth(consumer_key, consumer_secret))
+    # r = requests.get(api_URL, auth=HTTPBasicAuth(consumer_key, consumer_secret))
 
     # return access_token from response
-    return r.json()['access_token']
+    # return r.json()['access_token']
 
 
 # initialize a flask app
-app = Flask(Mpesa-app)
+# app = Flask(Mpesa-app)
 
 # intialize a flask-restful api
 api = Api(app)
@@ -1081,16 +1081,16 @@ api = Api(app)
 class MakeSTKPush(Resource):
 
     # get 'phone' and 'amount' from request body
-    parser = reqparse.RequestParser()
-    parser.add_argument('phone',
-            type=str,
-            required=True,
-            help="This fied is required")
+    # parser = reqparse.RequestParser()
+    # parser.add_argument('phone',
+    #         type=str,
+    #         required=True,
+    #         help="This fied is required")
 
-    parser.add_argument('amount',
-            type=str,
-            required=True,
-            help="this fied is required")
+    # parser.add_argument('amount',
+    #         type=str,
+    #         required=True,
+    #         help="this fied is required")
 
     # make stkPush method
     def post(self):
@@ -1133,14 +1133,14 @@ class MakeSTKPush(Resource):
             }
 
             # make request and catch response
-            response = requests.post(api_url,json=request,headers=headers)
+            # response = requests.post(api_url,json=request,headers=headers)
 
             # check response code for errors and return response
-            if response.status_code > 299:
-                return{
-                    "success": False,
-                    "message":"Sorry, something went wrong please try again later."
-                },400
+            # if response.status_code > 299:
+            #     return{
+            #         "success": False,
+            #         "message":"Sorry, something went wrong please try again later."
+            #     },400
 
             # CheckoutRequestID = response.text['CheckoutRequestID']
 
@@ -1149,9 +1149,9 @@ class MakeSTKPush(Resource):
             # your CallBackURL endpoint.
 
             # return a respone to your user
-            return {
-                "data": json.loads(response.text)
-            },200
+            # return {
+            #     "data": json.loads(response.text)
+            # },200
 
         except:
             # catch error and return respones
