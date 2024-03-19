@@ -12,10 +12,7 @@ import cloudinary
 import cloudinary.uploader
 import cloudinary.api
 import requests
-from requests.auth import HTTPBasicAuth
-import base64
-import json
-from sqlalchemy import func
+
 
 
 # Initialize Flask app
