@@ -20,6 +20,7 @@ faker = "*"
 marshmallow = "*"
 cloudinary = "*"
 zipp = "*"
+requests = "*"
 
 [dev-packages]
 

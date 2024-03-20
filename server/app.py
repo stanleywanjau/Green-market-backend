@@ -6,13 +6,8 @@ from datetime import datetime
 import smtplib
 import logging
 import os
-<<<<<<< HEAD
 from config import db, api, app
 from models import Payment, User,Farmer,Reviews,Order,Product,ChatMessage
-=======
-from .config import db, api, app
-from .models import User,Farmer,Reviews,Order,Product,ChatMessage
->>>>>>> 01300e2edbf7677f67ba6939833c52732b3f07f0
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
@@ -20,11 +15,6 @@ import requests
 from requests.auth import HTTPBasicAuth
 import base64
 import json
-<<<<<<< HEAD
-=======
-
-
->>>>>>> 01300e2edbf7677f67ba6939833c52732b3f07f0
 from sqlalchemy import func
 
 
